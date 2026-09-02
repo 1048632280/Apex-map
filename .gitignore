@@ -1,0 +1,7 @@
+# 本地 API 配置，避免密钥被提交
+config.local.js
+
+# 常见的本地环境变量文件
+.env
+.env.*
+!.env.example

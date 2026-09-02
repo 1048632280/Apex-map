@@ -1,0 +1,83 @@
+{
+  "updatedAt": "2026-09-02",
+  "scope": "Apex Legends Battle Royale ranked-capable maps",
+  "maps": [
+    {
+      "name": "Broken Moon",
+      "slug": "broken-moon",
+      "apexStatusCodes": ["broken_moon_rotation"],
+      "aliases": ["Broken Moon", "Broken_Moon", "broken_moon"],
+      "images": {
+        "official": "image/broken-moon-official-16x9.jpg"
+      },
+      "sources": {
+        "officialPage": "https://www.ea.com/games/apex-legends/apex-legends/maps-hub/broken-moon"
+      }
+    },
+    {
+      "name": "E-District",
+      "slug": "e-district",
+      "apexStatusCodes": ["e_district_rotation"],
+      "aliases": ["E-District", "E District", "E_District", "e_district"],
+      "images": {
+        "official": "image/e-district-official-16x9.jpg"
+      },
+      "sources": {
+        "officialPage": "https://www.ea.com/games/apex-legends/apex-legends/maps-hub/e-district"
+      }
+    },
+    {
+      "name": "Kings Canyon",
+      "slug": "kings-canyon",
+      "apexStatusCodes": ["kings_canyon_rotation"],
+      "aliases": ["Kings Canyon", "King's Canyon", "Kings_Canyon", "kings_canyon"],
+      "images": {
+        "official": "image/kings-canyon-official-16x9.jpg"
+      },
+      "sources": {
+        "officialPage": "https://www.ea.com/games/apex-legends/apex-legends/maps-hub/kings-canyon"
+      }
+    },
+    {
+      "name": "Olympus",
+      "slug": "olympus",
+      "apexStatusCodes": ["olympus_rotation"],
+      "aliases": ["Olympus", "olympus"],
+      "images": {
+        "official": "image/olympus-official-16x9.jpg"
+      },
+      "sources": {
+        "officialPage": "https://www.ea.com/games/apex-legends/apex-legends/maps-hub/olympus"
+      }
+    },
+    {
+      "name": "Storm Point",
+      "slug": "storm-point",
+      "apexStatusCodes": ["storm_point_rotation"],
+      "aliases": ["Storm Point", "Storm_Point", "storm_point"],
+      "images": {
+        "official": "image/storm-point-official-16x9.jpg"
+      },
+      "sources": {
+        "officialPage": "https://www.ea.com/games/apex-legends/apex-legends/maps-hub/storm-point"
+      }
+    },
+    {
+      "name": "World's Edge",
+      "slug": "worlds-edge",
+      "apexStatusCodes": ["worlds_edge_rotation"],
+      "aliases": ["World's Edge", "Worlds Edge", "Worlds_Edge", "worlds_edge"],
+      "images": {
+        "official": "image/worlds-edge-official-16x9.jpg"
+      },
+      "sources": {
+        "officialPage": "https://www.ea.com/games/apex-legends/apex-legends/maps-hub/worlds-edge"
+      }
+    }
+  ],
+  "icons": {
+    "iosTouchIcon": "image/apex-icon-180.png",
+    "pwa192": "image/apex-icon-192.png",
+    "pwa512": "image/apex-icon-512.png"
+  }
+}
