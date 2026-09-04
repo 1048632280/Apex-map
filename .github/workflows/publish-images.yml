@@ -1,4 +1,4 @@
-name: Publish Docker Images
+name: Publish Go Docker Image
 
 on:
   push:
@@ -17,17 +17,6 @@ jobs:
     permissions:
       contents: read
       packages: write
-
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: node
-            dockerfile: Dockerfile.node
-            image_suffix: apex-map-node
-          - name: go
-            dockerfile: Dockerfile.go
-            image_suffix: apex-map-go
 
     steps:
       - name: Checkout
@@ -50,7 +39,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image_suffix }}
+          images: ghcr.io/1048632280/apex-map-go
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=ref,event=tag
@@ -60,7 +49,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ${{ matrix.dockerfile }}
+          file: docker/Dockerfile
           push: true
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}

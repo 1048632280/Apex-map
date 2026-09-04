@@ -10,7 +10,6 @@ const ringRadius = 50;
 const ringCircumference = 2 * Math.PI * ringRadius;
 
 const elements = {
-  localTime: document.querySelector("#local-time"),
   countdown: document.querySelector("#countdown"),
   currentTitle: document.querySelector("#current-title"),
   currentSubtitle: document.querySelector("#current-subtitle"),
@@ -164,6 +163,10 @@ function getMapImage(map) {
   return getMapEntry(map)?.images?.official || "";
 }
 
+function getMapThumbnail(map) {
+  return getMapEntry(map)?.images?.thumbnail || "";
+}
+
 function setMapImage(imageElement, containerElement, map, hideContainer = false) {
   const src = getMapImage(map);
 
@@ -185,6 +188,9 @@ function setMapImage(imageElement, containerElement, map, hideContainer = false)
   }
 
   if (imageElement.getAttribute("src") !== src) {
+    imageElement.decoding = "async";
+    imageElement.loading = imageElement === elements.currentMapImage ? "eager" : "lazy";
+    imageElement.fetchPriority = imageElement === elements.currentMapImage ? "high" : "low";
     imageElement.src = src;
   }
   imageElement.hidden = false;
@@ -198,6 +204,7 @@ function preloadMapImage(map) {
 
   const image = new Image();
   image.decoding = "async";
+  image.fetchPriority = "low";
   image.src = src;
 }
 
@@ -347,7 +354,7 @@ function createTimelineItem(item, index) {
 
   const thumb = document.createElement("div");
   thumb.className = "timeline-thumb";
-  const thumbSrc = item.placeholder ? "" : getMapImage(item);
+  const thumbSrc = item.placeholder ? "" : getMapThumbnail(item);
 
   if (thumbSrc) {
     const image = document.createElement("img");
@@ -355,6 +362,7 @@ function createTimelineItem(item, index) {
     image.alt = "";
     image.decoding = "async";
     image.loading = index === 0 ? "eager" : "lazy";
+    image.fetchPriority = "low";
     thumb.append(image);
   } else {
     thumb.classList.add("is-empty");
@@ -391,8 +399,6 @@ function renderTimeline() {
 }
 
 function render() {
-  elements.localTime.textContent = formatClock(Date.now(), { seconds: true });
-
   if (!activeSchedule) {
     return;
   }
@@ -421,6 +427,12 @@ function render() {
 }
 
 elements.progressRing.style.strokeDasharray = String(ringCircumference);
+const initialMapCatalog = window.__APEX_MAP_CATALOG__;
+const hasInitialMapCatalog = Array.isArray(initialMapCatalog?.maps);
+if (hasInitialMapCatalog) {
+  mapCatalog = indexMapCatalog(initialMapCatalog.maps);
+}
+
 const initialState = window.__APEX_INITIAL_STATE__;
 if (initialState?.data) {
   applyServerState(initialState);
@@ -429,7 +441,9 @@ if (initialState?.data) {
   render();
 }
 
-loadMapCatalog();
+if (!hasInitialMapCatalog) {
+  loadMapCatalog();
+}
 loadSchedule();
 window.setInterval(render, 1000);
 

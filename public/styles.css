@@ -118,13 +118,6 @@ h2 {
   letter-spacing: 0;
 }
 
-.local-time {
-  flex: 0 0 auto;
-  color: var(--muted);
-  font-size: 15px;
-  font-variant-numeric: tabular-nums;
-}
-
 .card {
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -525,10 +518,6 @@ h2 {
     font-size: 42px;
   }
 
-  .local-time {
-    font-size: 12px;
-  }
-
   .hero-panel,
   .hero-content {
     min-height: 404px;
@@ -626,10 +615,6 @@ h2 {
 @media (max-width: 420px) {
   .topbar {
     align-items: flex-start;
-  }
-
-  .local-time {
-    padding-top: 3px;
   }
 
   h2 {

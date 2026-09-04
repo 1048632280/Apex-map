@@ -1,0 +1,7 @@
+services:
+  apex-map-go:
+    image: ghcr.io/1048632280/apex-map-go:latest
+    container_name: apex-map-go
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:4173:4173"

@@ -8,7 +8,8 @@
       "apexStatusCodes": ["broken_moon_rotation"],
       "aliases": ["Broken Moon", "Broken_Moon", "broken_moon"],
       "images": {
-        "official": "image/broken-moon-official-16x9.jpg"
+        "official": "image/broken-moon-official.webp",
+        "thumbnail": "image/broken-moon-thumb.webp"
       },
       "sources": {
         "officialPage": "https://www.ea.com/games/apex-legends/apex-legends/maps-hub/broken-moon"
@@ -20,7 +21,8 @@
       "apexStatusCodes": ["e_district_rotation"],
       "aliases": ["E-District", "E District", "E_District", "e_district"],
       "images": {
-        "official": "image/e-district-official-16x9.jpg"
+        "official": "image/e-district-official.webp",
+        "thumbnail": "image/e-district-thumb.webp"
       },
       "sources": {
         "officialPage": "https://www.ea.com/games/apex-legends/apex-legends/maps-hub/e-district"
@@ -32,7 +34,8 @@
       "apexStatusCodes": ["kings_canyon_rotation"],
       "aliases": ["Kings Canyon", "King's Canyon", "Kings_Canyon", "kings_canyon"],
       "images": {
-        "official": "image/kings-canyon-official-16x9.jpg"
+        "official": "image/kings-canyon-official.webp",
+        "thumbnail": "image/kings-canyon-thumb.webp"
       },
       "sources": {
         "officialPage": "https://www.ea.com/games/apex-legends/apex-legends/maps-hub/kings-canyon"
@@ -44,7 +47,8 @@
       "apexStatusCodes": ["olympus_rotation"],
       "aliases": ["Olympus", "olympus"],
       "images": {
-        "official": "image/olympus-official-16x9.jpg"
+        "official": "image/olympus-official.webp",
+        "thumbnail": "image/olympus-thumb.webp"
       },
       "sources": {
         "officialPage": "https://www.ea.com/games/apex-legends/apex-legends/maps-hub/olympus"
@@ -56,7 +60,8 @@
       "apexStatusCodes": ["storm_point_rotation"],
       "aliases": ["Storm Point", "Storm_Point", "storm_point"],
       "images": {
-        "official": "image/storm-point-official-16x9.jpg"
+        "official": "image/storm-point-official.webp",
+        "thumbnail": "image/storm-point-thumb.webp"
       },
       "sources": {
         "officialPage": "https://www.ea.com/games/apex-legends/apex-legends/maps-hub/storm-point"
@@ -68,7 +73,8 @@
       "apexStatusCodes": ["worlds_edge_rotation"],
       "aliases": ["World's Edge", "Worlds Edge", "Worlds_Edge", "worlds_edge"],
       "images": {
-        "official": "image/worlds-edge-official-16x9.jpg"
+        "official": "image/worlds-edge-official.webp",
+        "thumbnail": "image/worlds-edge-thumb.webp"
       },
       "sources": {
         "officialPage": "https://www.ea.com/games/apex-legends/apex-legends/maps-hub/worlds-edge"

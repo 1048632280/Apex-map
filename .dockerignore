@@ -1,8 +1,6 @@
 .git
 .github
 .gitignore
+README.md
 *.local.js
 node_modules
-Dockerfile*
-docker-compose*.yml
-README.md

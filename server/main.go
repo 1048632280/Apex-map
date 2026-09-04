@@ -2,30 +2,16 @@ package main
 
 import (
 	"context"
-	"embed"
 	"encoding/json"
 	"fmt"
-	"io/fs"
 	"log"
 	"net/http"
 	"os"
-	"strconv"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 )
-
-const (
-	defaultPort         = 4173
-	apiURL              = "https://apexranked.com/api/ranked-map"
-	pollInterval        = time.Minute
-	requestTimeout      = 15 * time.Second
-	boundaryExtraDelay  = 1500 * time.Millisecond
-	minBoundaryDelay    = 5 * time.Second
-)
-
-//go:embed index.html styles.css app.js manifest.webmanifest image/*
-var staticFiles embed.FS
 
 type mapData struct {
 	Key             string `json:"key"`
@@ -56,21 +42,37 @@ var (
 	boundaryMu   sync.Mutex
 	boundaryTimer *time.Timer
 	latestState  = publicState{}
+	mapCatalogJSON string
+	publicDir      string
 )
 
-func configuredPort() int {
-	value, err := strconv.Atoi(os.Getenv("PORT"))
-	if err != nil || value < 1 || value > 65535 {
-		return defaultPort
+func resolvePublicDir() (string, error) {
+	executable, err := os.Executable()
+	if err != nil {
+		return "", err
 	}
-	return value
-}
 
-func configuredAPIURL() string {
-	if value := strings.TrimSpace(os.Getenv("APEXRANKED_API_URL")); value != "" {
-		return value
+	executableDir := filepath.Dir(executable)
+	candidates := []string{
+		filepath.Join(".", publicDirectoryName),
+		filepath.Join(".", "..", publicDirectoryName),
+		filepath.Join(executableDir, publicDirectoryName),
+		filepath.Join(executableDir, "..", publicDirectoryName),
 	}
-	return apiURL
+
+	for _, candidate := range candidates {
+		absolute, err := filepath.Abs(candidate)
+		if err != nil {
+			continue
+		}
+
+		info, err := os.Stat(absolute)
+		if err == nil && info.IsDir() {
+			return absolute, nil
+		}
+	}
+
+	return "", fmt.Errorf("找不到 %s 目录", publicDirectoryName)
 }
 
 func normalizeMap(item mapData) (mapData, error) {
@@ -131,7 +133,7 @@ func normalizeSchedule(payload apiSchedule) (apiSchedule, error) {
 }
 
 func fetchSchedule(ctx context.Context) (apiSchedule, error) {
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, configuredAPIURL(), nil)
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, apexRankedAPIURL, nil)
 	if err != nil {
 		return apiSchedule{}, err
 	}
@@ -260,7 +262,7 @@ func writeJSON(writer http.ResponseWriter, statusCode int, payload any) {
 }
 
 func serveIndex(writer http.ResponseWriter) {
-	source, err := fs.ReadFile(staticFiles, "index.html")
+	source, err := os.ReadFile(filepath.Join(publicDir, "index.html"))
 	if err != nil {
 		http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
 		return
@@ -273,7 +275,8 @@ func serveIndex(writer http.ResponseWriter) {
 	}
 
 	safeState := strings.ReplaceAll(string(stateJSON), "<", "\\u003c")
-	bootScript := `<script>window.__APEX_INITIAL_STATE__=` + safeState + `;</script>`
+	bootScript := `<script>window.__APEX_INITIAL_STATE__=` + safeState +
+		`;window.__APEX_MAP_CATALOG__=` + mapCatalogJSON + `;</script>`
 	html := strings.Replace(string(source), "</head>", bootScript+"</head>", 1)
 
 	writer.Header().Set("Cache-Control", "no-store")
@@ -291,7 +294,7 @@ func methodAllowed(writer http.ResponseWriter, request *http.Request) bool {
 }
 
 func handler() http.Handler {
-	staticHandler := http.FileServer(http.FS(staticFiles))
+	staticHandler := http.FileServer(http.Dir(publicDir))
 
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if !methodAllowed(writer, request) {
@@ -315,22 +318,43 @@ func handler() http.Handler {
 		case "/", "/index.html":
 			serveIndex(writer)
 		default:
+			if strings.HasPrefix(request.URL.Path, "/image/") &&
+				(strings.HasSuffix(request.URL.Path, ".webp") ||
+					strings.HasSuffix(request.URL.Path, ".png") ||
+					strings.HasSuffix(request.URL.Path, ".ico")) {
+				writer.Header().Set("Cache-Control", "public, max-age=2592000")
+				if strings.HasSuffix(request.URL.Path, ".webp") {
+					writer.Header().Set("Content-Type", "image/webp")
+				}
+			}
 			staticHandler.ServeHTTP(writer, request)
 		}
 	})
 }
 
 func main() {
+	var err error
+	publicDir, err = resolvePublicDir()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	catalog, err := os.ReadFile(filepath.Join(publicDir, "image", "maps.json"))
+	if err != nil || !json.Valid(catalog) {
+		log.Fatal("地图资源清单无效")
+	}
+	mapCatalogJSON = strings.ReplaceAll(string(catalog), "<", "\\u003c")
+
 	_ = refreshSchedule()
 	startPolling()
 
 	server := &http.Server{
-		Addr:              ":" + strconv.Itoa(configuredPort()),
+		Addr:              fmt.Sprintf(":%d", defaultPort),
 		Handler:           handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	log.Printf("Apex Rotation running at http://0.0.0.0:%d", configuredPort())
+	log.Printf("Apex Rotation running at http://0.0.0.0:%d", defaultPort)
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
 	}
