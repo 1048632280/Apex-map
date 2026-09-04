@@ -1,11 +1,11 @@
 let activeSchedule = null;
 let reloadTimer = null;
 let retryTimer = null;
+let requestInFlight = false;
 let mapCatalog = new Map();
 
+const scheduleEndpoint = "./api/schedule";
 const mapCatalogUrl = "./image/maps.json";
-const rotationStoreKey = "apex-ranked-rotation-v2";
-const rotationMemoryMaxAgeMs = 30 * 24 * 60 * 60 * 1000;
 const ringRadius = 50;
 const ringCircumference = 2 * Math.PI * ringRadius;
 
@@ -63,25 +63,43 @@ function formatCountdown(milliseconds) {
   return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
 }
 
+function parseApiTime(value) {
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
 function normalizeApiMap(map) {
-  if (!map || !map.map || !map.code || !map.start || !map.end) {
+  if (!map?.name || !map?.slug || !map?.starts_at || !map?.ends_at) {
     throw new Error("排位轮换数据不完整");
   }
 
-  const startsAt = Number(map.start) * 1000;
-  const endsAt = Number(map.end) * 1000;
+  const startsAt = parseApiTime(map.starts_at);
+  const endsAt = parseApiTime(map.ends_at);
 
   if (!Number.isFinite(startsAt) || !Number.isFinite(endsAt) || endsAt <= startsAt) {
     throw new Error("排位轮换时间无效");
   }
 
   return {
-    code: map.code,
-    name: map.map,
-    asset: map.asset,
+    code: map.key || map.slug,
+    name: map.name,
+    slug: map.slug,
     startsAt,
     endsAt,
-    durationMs: endsAt - startsAt
+    durationMs: endsAt - startsAt,
+    current: Boolean(map.is_current),
+    placeholder: false
+  };
+}
+
+function createPlaceholderMap() {
+  return {
+    name: "--",
+    startsAt: null,
+    endsAt: null,
+    durationMs: null,
+    current: false,
+    placeholder: true
   };
 }
 
@@ -135,6 +153,7 @@ function getMapEntry(map) {
   }
 
   return (
+    mapCatalog.get(normalizeLookupValue(map.slug)) ||
     mapCatalog.get(normalizeLookupValue(map.code)) ||
     mapCatalog.get(normalizeLookupValue(map.name)) ||
     null
@@ -142,8 +161,7 @@ function getMapEntry(map) {
 }
 
 function getMapImage(map) {
-  const entry = getMapEntry(map);
-  return entry?.images?.official || map?.asset || "";
+  return getMapEntry(map)?.images?.official || "";
 }
 
 function setMapImage(imageElement, containerElement, map, hideContainer = false) {
@@ -183,137 +201,44 @@ function preloadMapImage(map) {
   image.src = src;
 }
 
-function createEmptyRotationStore(epochStartedAt = Date.now()) {
-  return {
-    version: 2,
-    epochStartedAt,
-    transitions: {}
-  };
-}
-
-function readRotationStore() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(rotationStoreKey) || "null");
-    if (!saved || saved.version !== 2 || typeof saved.transitions !== "object") {
-      return createEmptyRotationStore();
-    }
-
-    return saved;
-  } catch {
-    return createEmptyRotationStore();
-  }
-}
-
-function writeRotationStore(store) {
-  try {
-    localStorage.setItem(rotationStoreKey, JSON.stringify(store));
-  } catch {
-    return;
-  }
-}
-
-function pruneRotationStore(store) {
-  const now = Date.now();
-  Object.keys(store.transitions).forEach((code) => {
-    const transition = store.transitions[code];
-    if (!transition?.updatedAt || now - transition.updatedAt > rotationMemoryMaxAgeMs) {
-      delete store.transitions[code];
-    }
-  });
-
-  if (!Object.keys(store.transitions).length) {
-    store.epochStartedAt = now;
-  }
-
-  return store;
-}
-
-function updateRotationStore(current, next) {
-  let store = pruneRotationStore(readRotationStore());
-  const transitionKeys = Object.keys(store.transitions);
-  const knownTransition = store.transitions[current.code];
-  const changedTransition = knownTransition && knownTransition.code !== next.code;
-  const trustedButUnknownCurrent = !knownTransition && transitionKeys.length >= 3;
-
-  if (changedTransition || trustedButUnknownCurrent) {
-    store = createEmptyRotationStore(current.startsAt);
-  }
-
-  store.transitions[current.code] = {
-    code: next.code,
-    name: next.name,
-    asset: next.asset,
-    durationMs: next.durationMs,
-    startsAt: next.startsAt,
-    endsAt: next.endsAt,
-    updatedAt: Date.now()
-  };
-
-  writeRotationStore(store);
-  return store;
-}
-
-function getLearnedThirdMap(store, next) {
-  const learned = store.transitions[next.code];
-  const now = Date.now();
-
-  if (
-    !learned ||
-    !learned.code ||
-    !learned.name ||
-    !Number.isFinite(learned.durationMs) ||
-    learned.updatedAt < store.epochStartedAt ||
-    now - learned.updatedAt > rotationMemoryMaxAgeMs
-  ) {
-    return null;
-  }
-
-  return {
-    code: learned.code,
-    name: learned.name,
-    asset: learned.asset,
-    startsAt: next.endsAt,
-    endsAt: next.endsAt + learned.durationMs,
-    durationMs: learned.durationMs,
-    current: false,
-    placeholder: false
-  };
-}
-
 function createScheduleFromApi(data) {
-  const ranked = data.ranked;
-  if (!ranked?.current || !ranked?.next) {
-    throw new Error("排位轮换数据不完整");
+  if (!data?.current || !data?.next || !Array.isArray(data.upcoming)) {
+    throw new Error("API 未返回完整的排位轮换数据");
   }
 
-  const current = normalizeApiMap(ranked.current);
-  const next = normalizeApiMap(ranked.next);
-  const store = updateRotationStore(current, next);
-  const third = getLearnedThirdMap(store, next) || {
-    name: "--",
-    startsAt: null,
-    endsAt: null,
-    durationMs: null,
-    current: false,
-    placeholder: true
+  const current = {
+    ...normalizeApiMap(data.current),
+    current: true
   };
+  const next = {
+    ...normalizeApiMap(data.next),
+    current: false
+  };
+  const upcoming = data.upcoming.slice(0, 3).map(normalizeApiMap);
 
   return {
     current,
     next,
     upcoming: [
-      { ...current, current: true, placeholder: false },
-      { ...next, current: false, placeholder: false },
-      third
+      current,
+      next,
+      upcoming[2] ? { ...upcoming[2], current: false } : createPlaceholderMap()
     ]
   };
 }
 
-function setOfflineState() {
-  activeSchedule = null;
+function setOfflineState(preserveSchedule = false) {
   document.body.classList.add("is-offline");
   elements.statusPill.classList.add("is-offline");
   elements.statusLabel.textContent = "OFFLINE";
+
+  if (preserveSchedule && activeSchedule) {
+    renderTimeline();
+    render();
+    return;
+  }
+
+  activeSchedule = null;
   elements.currentTitle.textContent = "--";
   elements.currentSubtitle.textContent = "--";
   elements.countdown.textContent = "--:--:--";
@@ -343,35 +268,50 @@ function scheduleRetry(delay = 60000) {
   retryTimer = window.setTimeout(loadSchedule, delay);
 }
 
-async function loadSchedule() {
-  const config = window.APP_CONFIG || {};
-
-  if (!config.apexApiKey || !config.apexApiUrl) {
+function applyServerState(serverState) {
+  if (!serverState?.data) {
     setOfflineState();
-    scheduleRetry();
     return;
   }
 
-  try {
-    const apiUrl = new URL(config.apexApiUrl, window.location.href);
-    apiUrl.searchParams.set("auth", String(config.apexApiKey).trim());
+  activeSchedule = createScheduleFromApi(serverState.data);
+  if (serverState.online) {
+    setOnlineState();
+  } else {
+    setOfflineState(true);
+  }
+  renderTimeline();
+  render();
+  scheduleReloadAtMapEnd();
+  preloadMapImage(activeSchedule.next);
+}
 
-    const response = await fetch(apiUrl.toString(), { cache: "no-store" });
-    if (!response.ok) {
-      throw new Error(`API 请求失败：${response.status}`);
+async function loadSchedule() {
+  if (requestInFlight) {
+    return;
+  }
+
+  requestInFlight = true;
+
+  try {
+    const response = await fetch(scheduleEndpoint, { cache: "no-store" });
+    const serverState = await response.json().catch(() => null);
+    if (!response.ok && !serverState) {
+      throw new Error(`服务器请求失败：${response.status}`);
     }
 
-    activeSchedule = createScheduleFromApi(await response.json());
-    clearRetryTimer();
-    setOnlineState();
-    renderTimeline();
-    render();
-    scheduleReloadAtMapEnd();
-    preloadMapImage(activeSchedule.next);
+    applyServerState(serverState);
+    if (serverState?.online) {
+      clearRetryTimer();
+    } else {
+      scheduleRetry();
+    }
   } catch (error) {
     console.warn(error);
     setOfflineState();
     scheduleRetry();
+  } finally {
+    requestInFlight = false;
   }
 }
 
@@ -442,9 +382,9 @@ function createTimelineItem(item, index) {
 
 function renderTimeline() {
   const items = activeSchedule?.upcoming || [
-    { name: "--", startsAt: null, endsAt: null, placeholder: true },
-    { name: "--", startsAt: null, endsAt: null, placeholder: true },
-    { name: "--", startsAt: null, endsAt: null, placeholder: true }
+    createPlaceholderMap(),
+    createPlaceholderMap(),
+    createPlaceholderMap()
   ];
 
   elements.timeline.replaceChildren(...items.map(createTimelineItem));
@@ -481,8 +421,14 @@ function render() {
 }
 
 elements.progressRing.style.strokeDasharray = String(ringCircumference);
-setOfflineState();
-render();
+const initialState = window.__APEX_INITIAL_STATE__;
+if (initialState?.data) {
+  applyServerState(initialState);
+} else {
+  setOfflineState();
+  render();
+}
+
 loadMapCatalog();
 loadSchedule();
 window.setInterval(render, 1000);
