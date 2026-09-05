@@ -18,7 +18,7 @@
     {
       "name": "E-District",
       "slug": "e-district",
-      "apexStatusCodes": ["e_district_rotation"],
+      "apexStatusCodes": ["e_district_rotation", "edistrict_rotation"],
       "aliases": ["E-District", "E District", "E_District", "e_district"],
       "images": {
         "official": "image/e-district-official.webp",

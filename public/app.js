@@ -91,6 +91,14 @@ function normalizeApiMap(map) {
   };
 }
 
+function normalizeTimelineMap(map) {
+  if (map?.placeholder) {
+    return createPlaceholderMap();
+  }
+
+  return normalizeApiMap(map);
+}
+
 function createPlaceholderMap() {
   return {
     name: "--",
@@ -221,7 +229,7 @@ function createScheduleFromApi(data) {
     ...normalizeApiMap(data.next),
     current: false
   };
-  const upcoming = data.upcoming.slice(0, 3).map(normalizeApiMap);
+  const upcoming = data.upcoming.slice(0, 3).map(normalizeTimelineMap);
 
   return {
     current,

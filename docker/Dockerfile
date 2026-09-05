@@ -17,7 +17,9 @@ WORKDIR /app
 
 RUN apk add --no-cache ca-certificates && \
     addgroup -S app && \
-    adduser -S -G app app
+    adduser -S -G app app && \
+    mkdir -p /app/data && \
+    chown -R app:app /app/data
 
 COPY --from=builder /out/apex-map /app/apex-map
 COPY public /app/public

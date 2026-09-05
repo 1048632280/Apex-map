@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,13 +22,14 @@ type mapData struct {
 	EndsAt          string `json:"ends_at"`
 	DurationMinutes int    `json:"duration_minutes"`
 	IsCurrent       bool   `json:"is_current"`
+	Placeholder     bool   `json:"placeholder,omitempty"`
 }
 
 type apiSchedule struct {
-	Current     mapData   `json:"current"`
-	Next        mapData   `json:"next"`
-	Upcoming    []mapData `json:"upcoming"`
-	CycleMinutes int      `json:"cycle_minutes"`
+	Current      mapData   `json:"current"`
+	Next         mapData   `json:"next"`
+	Upcoming     []mapData `json:"upcoming"`
+	CycleMinutes int       `json:"cycle_minutes"`
 }
 
 type publicState struct {
@@ -36,14 +38,63 @@ type publicState struct {
 	FetchedAt *time.Time   `json:"fetchedAt"`
 }
 
+type apexStatusResponse struct {
+	Ranked apexStatusMode `json:"ranked"`
+}
+
+type apexStatusMode struct {
+	Current apexStatusMap `json:"current"`
+	Next    apexStatusMap `json:"next"`
+}
+
+type apexStatusMap struct {
+	Start             int64  `json:"start"`
+	End               int64  `json:"end"`
+	Map               string `json:"map"`
+	Code              string `json:"code"`
+	DurationInMinutes int    `json:"DurationInMinutes"`
+}
+
+type catalogFile struct {
+	Maps []catalogMap `json:"maps"`
+}
+
+type catalogMap struct {
+	Name            string   `json:"name"`
+	Slug            string   `json:"slug"`
+	ApexStatusCodes []string `json:"apexStatusCodes"`
+	Aliases         []string `json:"aliases"`
+}
+
+type mapSnapshot struct {
+	ID   string `json:"id"`
+	Key  string `json:"key"`
+	Slug string `json:"slug"`
+	Name string `json:"name"`
+}
+
+type learnedTransition struct {
+	From     mapSnapshot `json:"from"`
+	To       mapSnapshot `json:"to"`
+	LastSeen string      `json:"last_seen"`
+}
+
+type rotationMemory struct {
+	Transitions map[string]learnedTransition `json:"transitions"`
+}
+
 var (
-	stateMu      sync.RWMutex
-	refreshMu    sync.Mutex
-	boundaryMu   sync.Mutex
-	boundaryTimer *time.Timer
-	latestState  = publicState{}
-	mapCatalogJSON string
-	publicDir      string
+	stateMu          sync.RWMutex
+	refreshMu        sync.Mutex
+	boundaryMu       sync.Mutex
+	memoryMu         sync.Mutex
+	boundaryTimer    *time.Timer
+	latestState      = publicState{}
+	mapCatalogJSON   string
+	mapCatalogLookup = map[string]catalogMap{}
+	publicDir        string
+	rotationState    = rotationMemory{Transitions: map[string]learnedTransition{}}
+	stateFilePath    string
 )
 
 func resolvePublicDir() (string, error) {
@@ -75,65 +126,365 @@ func resolvePublicDir() (string, error) {
 	return "", fmt.Errorf("找不到 %s 目录", publicDirectoryName)
 }
 
-func normalizeMap(item mapData) (mapData, error) {
-	if item.Key == "" || item.Slug == "" || item.Name == "" || item.StartsAt == "" || item.EndsAt == "" {
-		return mapData{}, fmt.Errorf("API 未返回完整地图数据")
-	}
+func normalizeLookupValue(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	value = strings.ReplaceAll(value, "'", "")
+	value = strings.ReplaceAll(value, "’", "")
 
-	startsAt, err := time.Parse(time.RFC3339, item.StartsAt)
-	if err != nil {
-		return mapData{}, fmt.Errorf("API 返回的开始时间无效: %w", err)
-	}
-	endsAt, err := time.Parse(time.RFC3339, item.EndsAt)
-	if err != nil || !endsAt.After(startsAt) {
-		return mapData{}, fmt.Errorf("API 返回的结束时间无效")
-	}
+	var builder strings.Builder
+	lastSeparator := false
+	for _, char := range value {
+		isLetter := char >= 'a' && char <= 'z'
+		isNumber := char >= '0' && char <= '9'
+		if isLetter || isNumber {
+			builder.WriteRune(char)
+			lastSeparator = false
+			continue
+		}
 
-	if item.DurationMinutes <= 0 {
-		item.DurationMinutes = int(endsAt.Sub(startsAt).Minutes())
-	}
-	item.IsCurrent = false
-	return item, nil
-}
-
-func normalizeSchedule(payload apiSchedule) (apiSchedule, error) {
-	if len(payload.Upcoming) < 3 {
-		return apiSchedule{}, fmt.Errorf("API 未返回完整的 upcoming 数据")
-	}
-
-	current, err := normalizeMap(payload.Current)
-	if err != nil {
-		return apiSchedule{}, err
-	}
-	next, err := normalizeMap(payload.Next)
-	if err != nil {
-		return apiSchedule{}, err
-	}
-
-	upcoming := make([]mapData, 3)
-	for index, item := range payload.Upcoming[:3] {
-		upcoming[index], err = normalizeMap(item)
-		if err != nil {
-			return apiSchedule{}, err
+		if builder.Len() > 0 && !lastSeparator {
+			builder.WriteByte('_')
+			lastSeparator = true
 		}
 	}
 
-	current.IsCurrent = true
-	next.IsCurrent = false
-	upcoming[0] = current
-	upcoming[1] = next
-	upcoming[2].IsCurrent = false
+	return strings.Trim(builder.String(), "_")
+}
+
+func slugFromName(value string) string {
+	return strings.ReplaceAll(normalizeLookupValue(value), "_", "-")
+}
+
+func addCatalogLookup(lookup map[string]catalogMap, key string, item catalogMap) {
+	normalized := normalizeLookupValue(key)
+	if normalized != "" {
+		lookup[normalized] = item
+	}
+}
+
+func indexMapCatalog(catalog []byte) error {
+	var payload catalogFile
+	if err := json.Unmarshal(catalog, &payload); err != nil {
+		return err
+	}
+
+	lookup := map[string]catalogMap{}
+	for _, item := range payload.Maps {
+		if item.Name == "" || item.Slug == "" {
+			continue
+		}
+
+		addCatalogLookup(lookup, item.Name, item)
+		addCatalogLookup(lookup, item.Slug, item)
+		for _, code := range item.ApexStatusCodes {
+			addCatalogLookup(lookup, code, item)
+		}
+		for _, alias := range item.Aliases {
+			addCatalogLookup(lookup, alias, item)
+		}
+	}
+
+	mapCatalogLookup = lookup
+	return nil
+}
+
+func findCatalogMap(name string, code string) (catalogMap, bool) {
+	for _, value := range []string{code, name, slugFromName(name)} {
+		if item, ok := mapCatalogLookup[normalizeLookupValue(value)]; ok {
+			return item, true
+		}
+	}
+	return catalogMap{}, false
+}
+
+func apexStatusAPIKey() (string, error) {
+	apiKey := strings.TrimSpace(os.Getenv(apexStatusAPIKeyEnv))
+	if apiKey == "" || strings.EqualFold(apiKey, "YOUR_APEX_LEGENDS_STATUS_API_KEY") {
+		return "", fmt.Errorf("%s 未配置", apexStatusAPIKeyEnv)
+	}
+	return apiKey, nil
+}
+
+func apexStatusRequestURL(apiKey string) (string, error) {
+	endpoint, err := url.Parse(apexStatusAPIURL)
+	if err != nil {
+		return "", err
+	}
+
+	query := endpoint.Query()
+	query.Set("auth", apiKey)
+	query.Set("version", "2")
+	endpoint.RawQuery = query.Encode()
+	return endpoint.String(), nil
+}
+
+func normalizeApexStatusMap(item apexStatusMap, isCurrent bool) (mapData, error) {
+	name := strings.TrimSpace(item.Map)
+	code := strings.TrimSpace(item.Code)
+	if name == "" {
+		return mapData{}, fmt.Errorf("API 未返回地图名称")
+	}
+	if item.Start <= 0 || item.End <= item.Start {
+		return mapData{}, fmt.Errorf("API 返回的轮换时间无效")
+	}
+
+	start := time.Unix(item.Start, 0).UTC()
+	end := time.Unix(item.End, 0).UTC()
+	durationMinutes := item.DurationInMinutes
+	if durationMinutes <= 0 {
+		durationMinutes = int(end.Sub(start).Minutes())
+	}
+	if durationMinutes <= 0 {
+		return mapData{}, fmt.Errorf("API 返回的轮换时长无效")
+	}
+
+	slug := slugFromName(name)
+	if catalogItem, ok := findCatalogMap(name, code); ok {
+		name = catalogItem.Name
+		slug = catalogItem.Slug
+	}
+	key := code
+	if key == "" {
+		key = slug
+	}
+
+	return mapData{
+		Key:             key,
+		Slug:            slug,
+		Name:            name,
+		StartsAt:        start.Format(time.RFC3339),
+		EndsAt:          end.Format(time.RFC3339),
+		DurationMinutes: durationMinutes,
+		IsCurrent:       isCurrent,
+	}, nil
+}
+
+func placeholderMap() mapData {
+	return mapData{
+		Name:        "--",
+		Placeholder: true,
+	}
+}
+
+func mapIdentity(item mapData) string {
+	for _, value := range []string{item.Slug, item.Key, item.Name} {
+		if normalized := normalizeLookupValue(value); normalized != "" {
+			return normalized
+		}
+	}
+	return ""
+}
+
+func snapshotIdentity(snapshot mapSnapshot) string {
+	for _, value := range []string{snapshot.ID, snapshot.Slug, snapshot.Key, snapshot.Name} {
+		if normalized := normalizeLookupValue(value); normalized != "" {
+			return normalized
+		}
+	}
+	return ""
+}
+
+func snapshotMap(item mapData) mapSnapshot {
+	return mapSnapshot{
+		ID:   mapIdentity(item),
+		Key:  item.Key,
+		Slug: item.Slug,
+		Name: item.Name,
+	}
+}
+
+func transitionFresh(transition learnedTransition, now time.Time) bool {
+	lastSeen, err := time.Parse(time.RFC3339, transition.LastSeen)
+	if err != nil {
+		return false
+	}
+	age := now.Sub(lastSeen)
+	return age >= 0 && age <= transitionMaxAge
+}
+
+func pruneRotationMemoryLocked(now time.Time) {
+	for id, transition := range rotationState.Transitions {
+		if !transitionFresh(transition, now) {
+			delete(rotationState.Transitions, id)
+		}
+	}
+}
+
+func saveRotationMemoryLocked() error {
+	if stateFilePath == "" {
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(stateFilePath), 0700); err != nil {
+		return err
+	}
+
+	payload, err := json.MarshalIndent(rotationState, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(stateFilePath, payload, 0600)
+}
+
+func loadRotationMemory() {
+	stateFilePath = filepath.Join(filepath.Dir(publicDir), stateDirectoryName, stateFileName)
+
+	payload, err := os.ReadFile(stateFilePath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			log.Printf("[Apex Rotation] 读取轮换记忆失败: %v", err)
+		}
+		return
+	}
+
+	var memory rotationMemory
+	if err := json.Unmarshal(payload, &memory); err != nil {
+		log.Printf("[Apex Rotation] 轮换记忆格式无效: %v", err)
+		return
+	}
+	if memory.Transitions == nil {
+		memory.Transitions = map[string]learnedTransition{}
+	}
+
+	memoryMu.Lock()
+	rotationState = memory
+	pruneRotationMemoryLocked(time.Now().UTC())
+	memoryMu.Unlock()
+}
+
+func learnTransition(current mapData, next mapData) {
+	fromID := mapIdentity(current)
+	toID := mapIdentity(next)
+	if fromID == "" || toID == "" || fromID == toID {
+		return
+	}
+
+	now := time.Now().UTC()
+	transition := learnedTransition{
+		From:     snapshotMap(current),
+		To:       snapshotMap(next),
+		LastSeen: now.Format(time.RFC3339),
+	}
+
+	memoryMu.Lock()
+	defer memoryMu.Unlock()
+
+	if rotationState.Transitions == nil {
+		rotationState.Transitions = map[string]learnedTransition{}
+	}
+
+	if existing, ok := rotationState.Transitions[fromID]; ok && snapshotIdentity(existing.To) == toID {
+		if lastSeen, err := time.Parse(time.RFC3339, existing.LastSeen); err == nil && now.Sub(lastSeen) < memoryWriteInterval {
+			rotationState.Transitions[fromID] = transition
+			return
+		}
+	}
+
+	rotationState.Transitions[fromID] = transition
+	pruneRotationMemoryLocked(now)
+	if err := saveRotationMemoryLocked(); err != nil {
+		log.Printf("[Apex Rotation] 保存轮换记忆失败: %v", err)
+	}
+}
+
+func mapDuration(item mapData) time.Duration {
+	if item.DurationMinutes > 0 {
+		return time.Duration(item.DurationMinutes) * time.Minute
+	}
+
+	startsAt, startErr := time.Parse(time.RFC3339, item.StartsAt)
+	endsAt, endErr := time.Parse(time.RFC3339, item.EndsAt)
+	if startErr == nil && endErr == nil && endsAt.After(startsAt) {
+		return endsAt.Sub(startsAt)
+	}
+	return 0
+}
+
+func inferThirdMap(current mapData, next mapData) (mapData, bool) {
+	currentID := mapIdentity(current)
+	nextID := mapIdentity(next)
+	if currentID == "" || nextID == "" {
+		return mapData{}, false
+	}
+
+	now := time.Now().UTC()
+	memoryMu.Lock()
+	defer memoryMu.Unlock()
+
+	pruneRotationMemoryLocked(now)
+	nextTransition, ok := rotationState.Transitions[nextID]
+	if !ok || !transitionFresh(nextTransition, now) {
+		return mapData{}, false
+	}
+
+	thirdSnapshot := nextTransition.To
+	thirdID := snapshotIdentity(thirdSnapshot)
+	if thirdID == "" || thirdID == currentID || thirdID == nextID || thirdSnapshot.Name == "" {
+		return mapData{}, false
+	}
+
+	closingTransition, ok := rotationState.Transitions[thirdID]
+	if !ok || !transitionFresh(closingTransition, now) || snapshotIdentity(closingTransition.To) != currentID {
+		return mapData{}, false
+	}
+
+	startsAt, err := time.Parse(time.RFC3339, next.EndsAt)
+	if err != nil {
+		return mapData{}, false
+	}
+	duration := mapDuration(next)
+	if duration <= 0 {
+		duration = mapDuration(current)
+	}
+	if duration <= 0 {
+		return mapData{}, false
+	}
+
+	return mapData{
+		Key:             thirdSnapshot.Key,
+		Slug:            thirdSnapshot.Slug,
+		Name:            thirdSnapshot.Name,
+		StartsAt:        startsAt.Format(time.RFC3339),
+		EndsAt:          startsAt.Add(duration).Format(time.RFC3339),
+		DurationMinutes: int(duration.Minutes()),
+		IsCurrent:       false,
+	}, true
+}
+
+func normalizeSchedule(payload apexStatusResponse) (apiSchedule, error) {
+	current, err := normalizeApexStatusMap(payload.Ranked.Current, true)
+	if err != nil {
+		return apiSchedule{}, err
+	}
+	next, err := normalizeApexStatusMap(payload.Ranked.Next, false)
+	if err != nil {
+		return apiSchedule{}, err
+	}
+
+	learnTransition(current, next)
+	third := placeholderMap()
+	if inferred, ok := inferThirdMap(current, next); ok {
+		third = inferred
+	}
 
 	return apiSchedule{
 		Current:      current,
 		Next:         next,
-		Upcoming:     upcoming,
-		CycleMinutes: payload.CycleMinutes,
+		Upcoming:     []mapData{current, next, third},
+		CycleMinutes: current.DurationMinutes,
 	}, nil
 }
 
 func fetchSchedule(ctx context.Context) (apiSchedule, error) {
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, apexRankedAPIURL, nil)
+	apiKey, err := apexStatusAPIKey()
+	if err != nil {
+		return apiSchedule{}, err
+	}
+	requestURL, err := apexStatusRequestURL(apiKey)
+	if err != nil {
+		return apiSchedule{}, err
+	}
+
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
 	if err != nil {
 		return apiSchedule{}, err
 	}
@@ -149,7 +500,7 @@ func fetchSchedule(ctx context.Context) (apiSchedule, error) {
 		return apiSchedule{}, fmt.Errorf("API 请求失败: %s", response.Status)
 	}
 
-	var payload apiSchedule
+	var payload apexStatusResponse
 	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
 		return apiSchedule{}, err
 	}
@@ -234,6 +585,7 @@ func refreshSchedule() error {
 	schedule, err := fetchSchedule(ctx)
 	if err != nil {
 		setOfflineState()
+		resetBoundaryTimer()
 		log.Printf("[Apex Rotation] %v", err)
 		return err
 	}
@@ -340,10 +692,11 @@ func main() {
 	}
 
 	catalog, err := os.ReadFile(filepath.Join(publicDir, "image", "maps.json"))
-	if err != nil || !json.Valid(catalog) {
+	if err != nil || !json.Valid(catalog) || indexMapCatalog(catalog) != nil {
 		log.Fatal("地图资源清单无效")
 	}
 	mapCatalogJSON = strings.ReplaceAll(string(catalog), "<", "\\u003c")
+	loadRotationMemory()
 
 	_ = refreshSchedule()
 	startPolling()

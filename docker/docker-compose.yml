@@ -1,7 +1,16 @@
+version: "3"
+
 services:
   apex-map-go:
     image: ghcr.io/1048632280/apex-map-go:latest
     container_name: apex-map-go
     restart: unless-stopped
+    environment:
+      APEX_LEGENDS_STATUS_API_KEY: "YOUR_APEX_LEGENDS_STATUS_API_KEY"
     ports:
       - "127.0.0.1:4173:4173"
+    volumes:
+      - apex-map-data:/app/data
+
+volumes:
+  apex-map-data:
