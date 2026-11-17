@@ -1,0 +1,106 @@
+name: iOS Build
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "ios/**"
+      - "public/image/**"
+      - ".github/workflows/ios.yml"
+  pull_request:
+    paths:
+      - "ios/**"
+      - "public/image/**"
+      - ".github/workflows/ios.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: ios
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Toolchain info
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Pick an iPhone simulator
+        id: simulator
+        run: |
+          xcrun simctl list devices available --json > "$RUNNER_TEMP/simulators.json"
+          python3 - "$RUNNER_TEMP/simulators.json" <<'PY' > "$RUNNER_TEMP/udid.txt"
+          import json
+          import sys
+
+          data = json.load(open(sys.argv[1]))
+          for runtime in sorted(data["devices"], reverse=True):
+              if "iOS" not in runtime:
+                  continue
+              for device in data["devices"][runtime]:
+                  if device.get("isAvailable") and device["name"].startswith("iPhone"):
+                      print(device["udid"])
+                      raise SystemExit(0)
+          raise SystemExit("no available iPhone simulator")
+          PY
+          echo "udid=$(cat "$RUNNER_TEMP/udid.txt")" >> "$GITHUB_OUTPUT"
+          echo "Using simulator $(cat "$RUNNER_TEMP/udid.txt")"
+
+      - name: Build (simulator)
+        run: |
+          xcodebuild build \
+            -project ApexRotation.xcodeproj \
+            -scheme ApexRotation \
+            -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.udid }}" \
+            -derivedDataPath build
+
+      - name: Test
+        run: |
+          xcodebuild test \
+            -project ApexRotation.xcodeproj \
+            -scheme ApexRotation \
+            -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.udid }}" \
+            -derivedDataPath build
+
+      - name: Build unsigned IPA
+        run: |
+          xcodebuild build \
+            -project ApexRotation.xcodeproj \
+            -scheme ApexRotation \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath build-ipa \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
+
+          rm -rf Payload ApexRotation-unsigned.ipa
+          mkdir -p Payload
+          cp -R build-ipa/Build/Products/Release-iphoneos/ApexRotation.app Payload/
+          zip -qry ApexRotation-unsigned.ipa Payload
+          ls -lh ApexRotation-unsigned.ipa
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: ApexRotation-unsigned-ipa
+          path: ios/ApexRotation-unsigned.ipa
+          if-no-files-found: error
