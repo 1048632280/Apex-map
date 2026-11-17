@@ -92,15 +92,31 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY=""
 
-          rm -rf Payload ApexRotation-unsigned.ipa
-          mkdir -p Payload
-          cp -R build-ipa/Build/Products/Release-iphoneos/ApexRotation.app Payload/
-          zip -qry ApexRotation-unsigned.ipa Payload
-          ls -lh ApexRotation-unsigned.ipa
+          APP="build-ipa/Build/Products/Release-iphoneos/ApexRotation.app"
+          rm -rf Payload *.ipa
 
-      - name: Upload IPA
+          mkdir -p Payload
+          cp -R "$APP" Payload/
+          zip -qry ApexRotation-unsigned.ipa Payload
+
+          rm -rf Payload
+          mkdir -p Payload
+          cp -R "$APP" Payload/
+          rm -rf Payload/ApexRotation.app/PlugIns
+          zip -qry ApexRotation-app-only.ipa Payload
+
+          ls -lh *.ipa
+
+      - name: Upload full IPA
         uses: actions/upload-artifact@v4
         with:
           name: ApexRotation-unsigned-ipa
           path: ios/ApexRotation-unsigned.ipa
+          if-no-files-found: error
+
+      - name: Upload app-only IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: ApexRotation-app-only-ipa
+          path: ios/ApexRotation-app-only.ipa
           if-no-files-found: error
