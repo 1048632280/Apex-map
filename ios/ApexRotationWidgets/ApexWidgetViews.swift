@@ -32,13 +32,42 @@ struct ArtBackground: View {
 struct CountdownText: View {
     let slot: RotationSlot
     var size: CGFloat
+    var now: Date = Date()
 
     var body: some View {
-        Text(timerInterval: slot.start...slot.end, countsDown: true)
-            .font(.system(size: size, weight: .semibold).monospacedDigit())
-            .foregroundStyle(.white)
-            .lineLimit(1)
-            .minimumScaleFactor(0.6)
+        Group {
+            if #available(iOS 16.0, *) {
+                Text(timerInterval: slot.start...slot.end, countsDown: true)
+            } else {
+                Text(TimeFormat.countdown(slot.remaining(at: now)))
+            }
+        }
+        .font(.system(size: size, weight: .semibold, design: .monospaced))
+        .foregroundStyle(.white)
+        .lineLimit(1)
+        .minimumScaleFactor(0.6)
+    }
+}
+
+// MARK: - 组件背景（iOS 17 用 containerBackground，低版本用 background）
+
+struct WidgetBackground<Background: View>: ViewModifier {
+    let background: Background
+
+    func body(content: Content) -> some View {
+        Group {
+            if #available(iOS 17.0, *) {
+                content.containerBackground(for: .widget) { background }
+            } else {
+                content.background(background)
+            }
+        }
+    }
+}
+
+extension View {
+    func widgetBackground<Background: View>(@ViewBuilder _ background: () -> Background) -> some View {
+        modifier(WidgetBackground(background: background()))
     }
 }
 
@@ -96,7 +125,7 @@ struct UncalibratedWidgetView: View {
         }
         .foregroundStyle(.secondary)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .containerBackground(for: .widget) {
+        .widgetBackground {
             Color(uiColor: .secondarySystemGroupedBackground)
         }
     }
@@ -123,7 +152,7 @@ struct SmallCurrentView: View {
                 .frame(height: 3)
         }
         .padding(13)
-        .containerBackground(for: .widget) {
+        .widgetBackground {
             ArtBackground(base: entry.current.map.art, strong: true)
         }
     }
@@ -144,7 +173,7 @@ struct SmallCountdownView: View {
             CountdownText(slot: entry.current, size: 30)
         }
         .padding(13)
-        .containerBackground(for: .widget) {
+        .widgetBackground {
             ArtBackground(base: entry.current.map.art, strong: true)
         }
     }
@@ -157,7 +186,7 @@ struct SmallRingView: View {
         VStack(spacing: 7) {
             RingView(progress: entry.current.progress(at: entry.date), lineWidth: 8) {
                 Text("\(Int((entry.current.progress(at: entry.date) * 100).rounded()))%")
-                    .font(.system(size: 16, weight: .bold).monospacedDigit())
+                    .font(.system(size: 16, weight: .bold, design: .monospaced))
                     .foregroundStyle(.white)
             }
             .frame(width: 92, height: 92)
@@ -170,7 +199,7 @@ struct SmallRingView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(12)
-        .containerBackground(for: .widget) {
+        .widgetBackground {
             ArtBackground(base: entry.current.map.art, strong: true)
         }
     }
@@ -195,7 +224,7 @@ struct SmallRingNameView: View {
         .frame(width: 106, height: 106)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(10)
-        .containerBackground(for: .widget) {
+        .widgetBackground {
             ArtBackground(base: entry.current.map.art, strong: true)
         }
     }
@@ -242,7 +271,7 @@ struct MediumSplitView: View {
 
                 if let next {
                     Text(TimeFormat.clock.string(from: next.start))
-                        .font(.system(size: 19, weight: .semibold).monospacedDigit())
+                        .font(.system(size: 19, weight: .semibold, design: .monospaced))
                         .foregroundStyle(.primary)
                     Text(TimeFormat.relative(from: entry.date, to: next.start))
                         .font(.system(size: 11))
@@ -255,7 +284,7 @@ struct MediumSplitView: View {
             .frame(maxHeight: .infinity)
             .background(Color(uiColor: .secondarySystemGroupedBackground))
         }
-        .containerBackground(for: .widget) {
+        .widgetBackground {
             ArtBackground(base: entry.current.map.art)
         }
     }
@@ -295,7 +324,7 @@ struct MediumDualView: View {
                     .lineLimit(1)
                 if let next {
                     Text(TimeFormat.clock.string(from: next.start))
-                        .font(.system(size: 17, weight: .semibold).monospacedDigit())
+                        .font(.system(size: 17, weight: .semibold, design: .monospaced))
                         .foregroundStyle(.white)
                         .padding(.top, 2)
                 }
@@ -303,7 +332,7 @@ struct MediumDualView: View {
             .padding(13)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
         }
-        .containerBackground(for: .widget) {
+        .widgetBackground {
             ArtBackground(base: entry.current.map.art, strong: true)
         }
     }
@@ -352,7 +381,7 @@ struct LargeListView: View {
 
             Spacer(minLength: 0)
         }
-        .containerBackground(for: .widget) {
+        .widgetBackground {
             Color(uiColor: .secondarySystemGroupedBackground)
         }
     }
@@ -387,7 +416,7 @@ struct LargeOverlayView: View {
             .padding(.top, 8)
         }
         .padding(14)
-        .containerBackground(for: .widget) {
+        .widgetBackground {
             ArtBackground(base: entry.current.map.art, strong: true)
         }
     }
@@ -409,7 +438,7 @@ struct WidgetSlotRow: View {
     var body: some View {
         HStack(spacing: 9) {
             Text(TimeFormat.clock.string(from: slot.start))
-                .font(.system(size: 11, weight: .medium).monospacedDigit())
+                .font(.system(size: 11, weight: .medium, design: .monospaced))
                 .foregroundStyle(timeColor)
                 .frame(width: 34, alignment: .leading)
 

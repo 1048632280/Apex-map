@@ -75,7 +75,6 @@ struct SmallCurrentWidget: Widget {
         .configurationDisplayName("当前地图")
         .description("地图大图、名称和剩余时间。")
         .supportedFamilies([.systemSmall])
-        .contentMarginsDisabled()
     }
 }
 
@@ -91,7 +90,6 @@ struct SmallCountdownWidget: Widget {
         .configurationDisplayName("只看倒计时")
         .description("超大数字，一眼看到还剩多久。")
         .supportedFamilies([.systemSmall])
-        .contentMarginsDisabled()
     }
 }
 
@@ -107,7 +105,6 @@ struct SmallRingWidget: Widget {
         .configurationDisplayName("进度环")
         .description("大圆环显示当前这一小时的进度。")
         .supportedFamilies([.systemSmall])
-        .contentMarginsDisabled()
     }
 }
 
@@ -123,7 +120,6 @@ struct SmallRingNameWidget: Widget {
         .configurationDisplayName("圆环 + 地图名")
         .description("地图名放在圆环中央，下面是剩余时间。")
         .supportedFamilies([.systemSmall])
-        .contentMarginsDisabled()
     }
 }
 
@@ -139,7 +135,6 @@ struct MediumSplitWidget: Widget {
         .configurationDisplayName("当前 + 下一张（分栏）")
         .description("左边当前地图大图，右边下一张。")
         .supportedFamilies([.systemMedium])
-        .contentMarginsDisabled()
     }
 }
 
@@ -155,7 +150,6 @@ struct MediumDualWidget: Widget {
         .configurationDisplayName("当前 + 下一张（整图）")
         .description("一整张地图大图，左右分栏。")
         .supportedFamilies([.systemMedium])
-        .contentMarginsDisabled()
     }
 }
 
@@ -171,7 +165,6 @@ struct LargeListWidget: Widget {
         .configurationDisplayName("大图 + 排程")
         .description("上方当前地图大图，下方接下来三张。")
         .supportedFamilies([.systemLarge])
-        .contentMarginsDisabled()
     }
 }
 
@@ -187,7 +180,6 @@ struct LargeOverlayWidget: Widget {
         .configurationDisplayName("沉浸大图")
         .description("整张大图，信息压在底部。")
         .supportedFamilies([.systemLarge])
-        .contentMarginsDisabled()
     }
 }
 

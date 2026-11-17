@@ -1,13 +1,12 @@
 import Foundation
-import Observation
+import Combine
 import SwiftUI
 
-@Observable
-final class ConfigStore {
+final class ConfigStore: ObservableObject {
     private static let themeKey = "themeMode"
 
-    private(set) var config: RotationConfig
-    private(set) var themeMode: ThemeMode
+    @Published private(set) var config: RotationConfig
+    @Published private(set) var themeMode: ThemeMode
 
     init() {
         self.config = SharedConfig.load()

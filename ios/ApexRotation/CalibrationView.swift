@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 
 struct CalibrationView: View {
-    let store: ConfigStore
+    @ObservedObject var store: ConfigStore
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
@@ -10,7 +10,6 @@ struct CalibrationView: View {
     @State private var selectedIndex = 0
     @State private var switchTime = Date()
     @State private var minutesText = ""
-    @State private var importText = ""
     @State private var notice = ""
     @State private var editingSequence = false
 
@@ -18,7 +17,7 @@ struct CalibrationView: View {
     private var columns: [GridItem] { Array(repeating: GridItem(.flexible(), spacing: 8), count: 3) }
 
     var body: some View {
-        NavigationStack {
+        NavigationView {
             ScrollView {
                 VStack(spacing: 0) {
                     sectionLabel("现在游戏里是哪张图")
@@ -145,7 +144,7 @@ struct CalibrationView: View {
                         .keyboardType(.numberPad)
                         .multilineTextAlignment(.trailing)
                         .frame(width: 52)
-                        .font(.system(size: 15, weight: .semibold).monospacedDigit())
+                        .font(.system(size: 15, weight: .semibold, design: .monospaced))
                         .foregroundStyle(palette.ink1)
                     Text("分钟")
                         .font(.system(size: 15))
@@ -224,60 +223,56 @@ struct CalibrationView: View {
 
             divider
 
-            VStack(alignment: .leading, spacing: 8) {
-                TextEditor(text: $importText)
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(palette.ink2)
-                    .scrollContentBackground(.hidden)
-                    .frame(height: 88)
-                    .padding(8)
-                    .background(palette.fill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .autocorrectionDisabled()
-                    .textInputAutocapitalization(.never)
-
-                HStack(spacing: 10) {
-                    Button {
-                        if store.importText(importText) {
-                            loadCurrentState()
-                            notice = "已导入配置"
-                        } else {
-                            notice = "JSON 无效，导入失败"
-                        }
-                    } label: {
-                        Text("导入")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(palette.ink1)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 7)
-                            .background(palette.fill, in: Capsule())
-                    }
-                    .buttonStyle(.plain)
-
-                    Button {
-                        store.reset()
-                        loadCurrentState()
-                        notice = "已重置为默认配置"
-                    } label: {
-                        Text("重置")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(palette.accent)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 7)
-                    }
-                    .buttonStyle(.plain)
-
-                    Spacer()
-
-                    if !notice.isEmpty {
-                        Text(notice)
-                            .font(.system(size: 11))
-                            .foregroundStyle(palette.ink3)
-                    }
+            Button {
+                importFromPasteboard()
+            } label: {
+                row("从剪贴板导入") {
+                    Image(systemName: "doc.on.clipboard")
+                        .font(.system(size: 14))
+                        .foregroundStyle(palette.ink3)
                 }
             }
-            .padding(12)
+            .buttonStyle(.plain)
+
+            divider
+
+            HStack(spacing: 10) {
+                Button {
+                    store.reset()
+                    loadCurrentState()
+                    notice = "已重置为默认配置"
+                } label: {
+                    Text("重置为默认配置")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(palette.accent)
+                }
+                .buttonStyle(.plain)
+
+                Spacer()
+
+                if !notice.isEmpty {
+                    Text(notice)
+                        .font(.system(size: 11))
+                        .foregroundStyle(palette.ink3)
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 11)
         }
         .card(palette)
+    }
+
+    private func importFromPasteboard() {
+        guard let text = UIPasteboard.general.string else {
+            notice = "剪贴板是空的"
+            return
+        }
+        if store.importText(text) {
+            loadCurrentState()
+            notice = "已导入配置"
+        } else {
+            notice = "剪贴板内容不是有效配置"
+        }
     }
 
     // MARK: - 零件

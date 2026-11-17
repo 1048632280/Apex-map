@@ -13,7 +13,7 @@ enum BrandAsset {
 // MARK: - 主界面
 
 struct MainView: View {
-    @State private var store = ConfigStore()
+    @StateObject private var store = ConfigStore()
     @State private var showCalibration = false
 
     @Environment(\.colorScheme) private var colorScheme
@@ -69,7 +69,6 @@ struct MainView: View {
             .padding(.horizontal, 16)
             .padding(.bottom, 24)
         }
-        .scrollBounceBehavior(.basedOnSize)
     }
 
     // MARK: - 顶栏
@@ -123,9 +122,10 @@ struct MainView: View {
             Image(systemName: isDark ? "sun.max" : "moon")
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(palette.ink2)
+                .rotationEffect(.degrees(isDark ? 0 : 180))
+                .animation(.easeInOut(duration: 0.3), value: isDark)
                 .frame(width: 34, height: 34)
                 .background(palette.fill, in: Circle())
-                .contentTransition(.symbolEffect(.replace))
         }
         .buttonStyle(.plain)
         .accessibilityLabel(isDark ? "切换到亮色" : "切换到暗色")
@@ -151,7 +151,7 @@ struct MainView: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(TimeFormat.range(slot.start, slot.end))
-                    .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
                     .foregroundStyle(.white.opacity(0.72))
 
                 Text(slot.map.name)
@@ -165,7 +165,7 @@ struct MainView: View {
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(.white.opacity(0.62))
                     Text(TimeFormat.countdown(slot.remaining(at: now)))
-                        .font(.system(size: 22, weight: .semibold).monospacedDigit())
+                        .font(.system(size: 22, weight: .semibold, design: .monospaced))
                         .foregroundStyle(.white)
                 }
                 .padding(.top, 4)
@@ -220,7 +220,7 @@ struct MainView: View {
                     .foregroundStyle(palette.ink1)
                     .lineLimit(1)
                 Text(TimeFormat.range(slot.start, slot.end))
-                    .font(.system(size: 12).monospacedDigit())
+                    .font(.system(size: 12, design: .monospaced))
                     .foregroundStyle(palette.ink3)
             }
 
@@ -228,7 +228,7 @@ struct MainView: View {
 
             VStack(alignment: .trailing, spacing: 1) {
                 Text(TimeFormat.clock.string(from: slot.start))
-                    .font(.system(size: 17, weight: .bold).monospacedDigit())
+                    .font(.system(size: 17, weight: .bold, design: .monospaced))
                     .foregroundStyle(palette.ink1)
                 Text(TimeFormat.relative(from: now, to: slot.start))
                     .font(.system(size: 11))
@@ -262,7 +262,7 @@ struct MainView: View {
                         .lineLimit(1)
                     Spacer(minLength: 8)
                     Text(TimeFormat.clock.string(from: slot.start))
-                        .font(.system(size: 13, weight: .semibold).monospacedDigit())
+                        .font(.system(size: 13, weight: .semibold, design: .monospaced))
                         .foregroundStyle(palette.ink2)
                 }
                 .padding(.vertical, 9)

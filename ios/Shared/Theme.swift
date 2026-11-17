@@ -85,7 +85,7 @@ enum TypeScale {
     static let name = Font.system(size: 17, weight: .semibold)
     static let label = Font.system(size: 12, weight: .regular)
     static let badge = Font.system(size: 11, weight: .semibold)
-    static let metric = Font.system(size: 26, weight: .semibold).monospacedDigit()
+    static let metric = Font.system(size: 26, weight: .semibold, design: .monospaced)
 }
 
 // MARK: - 工具
