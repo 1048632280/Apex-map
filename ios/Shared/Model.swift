@@ -26,7 +26,7 @@ struct RotationConfig: Codable, Equatable {
     var calibrated: Bool
     var updatedAt: Date
 
-    static let defaultSecondsPerMap = 3600
+    static let defaultSecondsPerMap = 16200 // 4 小时 30 分
 
     static var fallback: RotationConfig {
         RotationConfig(
@@ -159,6 +159,16 @@ enum TimeFormat {
     static func countdown(_ interval: TimeInterval) -> String {
         let total = max(0, Int(interval.rounded(.down)))
         return String(format: "%02d:%02d:%02d", total / 3600, (total % 3600) / 60, total % 60)
+    }
+
+    /// 4 小时 30 分 / 45 分钟 / 1 小时
+    static func duration(seconds: Int) -> String {
+        let totalMinutes = max(0, seconds) / 60
+        let hours = totalMinutes / 60
+        let minutes = totalMinutes % 60
+        if hours == 0 { return "\(minutes) 分钟" }
+        if minutes == 0 { return "\(hours) 小时" }
+        return "\(hours) 小时 \(minutes) 分"
     }
 
     /// 刚刚 / 3 分钟前 / 3 小时前 / 2 天前

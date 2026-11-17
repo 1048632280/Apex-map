@@ -9,176 +9,209 @@ struct CalibrationView: View {
 
     @State private var selectedIndex = 0
     @State private var switchTime = Date()
-    @State private var minutesText = ""
+    @State private var hours = 4
+    @State private var minutes = 30
     @State private var notice = ""
-    @State private var editingSequence = false
 
     private var palette: Palette { .forScheme(colorScheme) }
-    private var columns: [GridItem] { Array(repeating: GridItem(.flexible(), spacing: 8), count: 3) }
+    private var durationSeconds: Int { max(300, hours * 3600 + minutes * 60) }
+    private var minuteOptions: [Int] { Array(stride(from: 0, to: 60, by: 5)) }
 
     var body: some View {
         NavigationView {
-            ScrollView {
-                VStack(spacing: 0) {
-                    sectionLabel("现在游戏里是哪张图")
-                    mapGrid
-
-                    sectionLabel("轮换")
-                    rotationCard
-
-                    sectionLabel("数据")
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 16) {
+                    calibrationCard
+                    durationCard
+                    orderCard
                     dataCard
                 }
                 .padding(.horizontal, 16)
-                .padding(.bottom, 32)
+                .padding(.top, 10)
+                .padding(.bottom, 36)
             }
             .background(palette.page.ignoresSafeArea())
             .navigationTitle("校准")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("完成") { dismiss() }
+                    Button("关闭") { dismiss() }
                 }
             }
-            .task { loadCurrentState() }
+            .onAppear { loadCurrentState() }
         }
+        .navigationViewStyle(.stack)
     }
 
-    // MARK: - 地图网格
+    // MARK: - 当前状态
 
-    private var mapGrid: some View {
+    private var calibrationCard: some View {
         VStack(spacing: 0) {
-            LazyVGrid(columns: columns, spacing: 8) {
-                ForEach(Array(store.config.maps.enumerated()), id: \.element.id) { index, map in
-                    Button {
-                        selectedIndex = index
-                        switchTime = suggestedSwitchTime()
-                    } label: {
-                        ZStack(alignment: .bottomLeading) {
-                            Color.clear
-                                .frame(height: 64)
-                                .overlay { thumbnail(map.thumb) }
-                                .clipped()
+            sectionTitle("现在游戏里是哪张图")
 
-                            Text(map.name)
-                                .font(.system(size: 9, weight: .semibold))
-                                .foregroundStyle(.white)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.7)
-                                .padding(.horizontal, 5)
-                                .padding(.vertical, 3)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(
-                                    LinearGradient(
-                                        colors: [.clear, .black.opacity(0.82)],
-                                        startPoint: .top,
-                                        endPoint: .bottom
-                                    )
-                                )
-                        }
-                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                                .stroke(selectedIndex == index ? palette.accent : .clear, lineWidth: 2)
-                        )
-                    }
-                    .buttonStyle(.plain)
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 96), spacing: 10)],
+                spacing: 10
+            ) {
+                ForEach(Array(store.config.maps.enumerated()), id: \.element.id) { index, map in
+                    mapCell(map, index: index)
                 }
             }
-            .padding(12)
+            .padding(.horizontal, 14)
 
-            divider
+            divider.padding(.top, 14)
 
-            row("这张图结束于") {
+            HStack {
+                Text("这张图结束于")
+                    .font(.system(size: 15))
+                    .foregroundStyle(palette.ink1)
+                Spacer(minLength: 8)
                 DatePicker("", selection: $switchTime, displayedComponents: .hourAndMinute)
                     .labelsHidden()
-                    .environment(\.locale, Locale(identifier: "zh_CN"))
             }
-
-            divider
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
 
             Text(previewText)
                 .font(.system(size: 12))
                 .foregroundStyle(palette.ink3)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 14)
-                .padding(.vertical, 11)
+                .padding(.bottom, 4)
 
             if !isPlausible {
-                Text("结束时间应该在 \(store.config.secondsPerMap / 60) 分钟以内，请检查选择的当前地图或时间。")
+                Text("结束时间应该在 \(TimeFormat.duration(seconds: durationSeconds))以内")
                     .font(.system(size: 12))
                     .foregroundStyle(palette.accent)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 14)
-                    .padding(.bottom, 10)
+                    .padding(.top, 4)
             }
 
             Button {
                 apply()
             } label: {
                 Text("应用校准")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(palette.onAccent)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 11)
-                    .background(palette.accent, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .padding(.vertical, 13)
+                    .background(
+                        palette.accent,
+                        in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    )
             }
             .buttonStyle(.plain)
             .disabled(!isPlausible)
-            .opacity(isPlausible ? 1 : 0.4)
-            .padding(12)
+            .opacity(isPlausible ? 1 : 0.45)
+            .padding(14)
         }
-        .card(palette)
+        .card(palette, radius: 16)
     }
 
-    // MARK: - 轮换
+    private func mapCell(_ map: MapEntry, index: Int) -> some View {
+        Button {
+            selectedIndex = index
+            switchTime = suggestedSwitchTime()
+        } label: {
+            ZStack(alignment: .bottomLeading) {
+                Color.clear
+                    .frame(height: 62)
+                    .overlay { artwork(map.thumb) }
+                    .clipped()
 
-    private var rotationCard: some View {
+                LinearGradient(
+                    colors: [Color.clear, Color.black.opacity(0.78)],
+                    startPoint: .center,
+                    endPoint: .bottom
+                )
+
+                Text(map.name)
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .padding(.horizontal, 5)
+                    .padding(.bottom, 4)
+            }
+            .frame(height: 62)
+            .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .stroke(selectedIndex == index ? palette.accent : Color.clear, lineWidth: 2)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - 时长（滚轮选数字）
+
+    private var durationCard: some View {
         VStack(spacing: 0) {
-            row("每张图时长") {
-                HStack(spacing: 4) {
-                    TextField("60", text: $minutesText)
-                        .keyboardType(.numberPad)
-                        .multilineTextAlignment(.trailing)
-                        .frame(width: 52)
-                        .font(.system(size: 15, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(palette.ink1)
-                    Text("分钟")
-                        .font(.system(size: 15))
-                        .foregroundStyle(palette.ink3)
-                }
-                .onSubmit {
-                    if let minutes = Int(minutesText) {
-                        store.setSecondsPerMap(minutes * 60)
-                        notice = "时长已更新"
+            HStack {
+                Text("每张图时长")
+                    .font(.system(size: 15))
+                    .foregroundStyle(palette.ink1)
+                Spacer(minLength: 8)
+                Text(TimeFormat.duration(seconds: durationSeconds))
+                    .font(.system(size: 15, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(palette.ink2)
+            }
+            .padding(.horizontal, 14)
+            .padding(.top, 14)
+            .padding(.bottom, 2)
+
+            HStack(spacing: 0) {
+                Picker("", selection: $hours) {
+                    ForEach(0...12, id: \.self) { value in
+                        Text("\(value) 小时").tag(value)
                     }
                 }
-            }
+                .pickerStyle(.wheel)
+                .frame(maxWidth: .infinity)
+                .clipped()
 
-            divider
+                Picker("", selection: $minutes) {
+                    ForEach(minuteOptions, id: \.self) { value in
+                        Text("\(value) 分").tag(value)
+                    }
+                }
+                .pickerStyle(.wheel)
+                .frame(maxWidth: .infinity)
+                .clipped()
+            }
+            .frame(height: 132)
+            .padding(.horizontal, 6)
+        }
+        .card(palette, radius: 16)
+        .onChange(of: hours) { _ in commitDuration() }
+        .onChange(of: minutes) { _ in commitDuration() }
+    }
+
+    // MARK: - 顺序
+
+    private var orderCard: some View {
+        VStack(spacing: 0) {
+            sectionTitle("轮换顺序")
 
             ForEach(Array(store.config.maps.enumerated()), id: \.element.id) { index, map in
                 HStack(spacing: 11) {
-                    thumbnail(map.thumb)
-                        .frame(width: 28, height: 28)
-                        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    thumbnail(map.thumb, size: 28, radius: 7)
 
                     Text(map.name)
                         .font(.system(size: 15))
                         .foregroundStyle(palette.ink1)
 
-                    Spacer()
+                    Spacer(minLength: 8)
 
-                    HStack(spacing: 10) {
+                    HStack(spacing: 14) {
                         Button {
                             move(index, by: -1)
                         } label: {
                             Image(systemName: "chevron.up")
-                                .font(.system(size: 12, weight: .semibold))
+                                .font(.system(size: 13, weight: .semibold))
                                 .foregroundStyle(index == 0 ? palette.ink4 : palette.ink2)
+                                .frame(width: 30, height: 30)
                         }
                         .buttonStyle(.plain)
                         .disabled(index == 0)
@@ -187,22 +220,23 @@ struct CalibrationView: View {
                             move(index, by: 1)
                         } label: {
                             Image(systemName: "chevron.down")
-                                .font(.system(size: 12, weight: .semibold))
+                                .font(.system(size: 13, weight: .semibold))
                                 .foregroundStyle(index == store.config.maps.count - 1 ? palette.ink4 : palette.ink2)
+                                .frame(width: 30, height: 30)
                         }
                         .buttonStyle(.plain)
                         .disabled(index == store.config.maps.count - 1)
                     }
                 }
                 .padding(.horizontal, 14)
-                .padding(.vertical, 9)
+                .padding(.vertical, 8)
 
                 if index < store.config.maps.count - 1 {
-                    divider
+                    divider.padding(.leading, 53)
                 }
             }
         }
-        .card(palette)
+        .card(palette, radius: 16)
     }
 
     // MARK: - 数据
@@ -221,7 +255,7 @@ struct CalibrationView: View {
             }
             .buttonStyle(.plain)
 
-            divider
+            divider.padding(.leading, 14)
 
             Button {
                 importFromPasteboard()
@@ -234,13 +268,13 @@ struct CalibrationView: View {
             }
             .buttonStyle(.plain)
 
-            divider
+            divider.padding(.leading, 14)
 
-            HStack(spacing: 10) {
+            HStack {
                 Button {
                     store.reset()
                     loadCurrentState()
-                    notice = "已重置为默认配置"
+                    notice = "已重置"
                 } label: {
                     Text("重置为默认配置")
                         .font(.system(size: 14, weight: .semibold))
@@ -248,42 +282,31 @@ struct CalibrationView: View {
                 }
                 .buttonStyle(.plain)
 
-                Spacer()
+                Spacer(minLength: 8)
 
                 if !notice.isEmpty {
                     Text(notice)
                         .font(.system(size: 11))
                         .foregroundStyle(palette.ink3)
+                        .lineLimit(1)
                 }
             }
             .padding(.horizontal, 14)
-            .padding(.vertical, 11)
+            .padding(.vertical, 12)
         }
-        .card(palette)
-    }
-
-    private func importFromPasteboard() {
-        guard let text = UIPasteboard.general.string else {
-            notice = "剪贴板是空的"
-            return
-        }
-        if store.importText(text) {
-            loadCurrentState()
-            notice = "已导入配置"
-        } else {
-            notice = "剪贴板内容不是有效配置"
-        }
+        .card(palette, radius: 16)
     }
 
     // MARK: - 零件
 
-    private func sectionLabel(_ text: String) -> some View {
+    private func sectionTitle(_ text: String) -> some View {
         Text(text)
-            .font(TypeScale.section)
+            .font(.system(size: 13, weight: .semibold))
             .foregroundStyle(palette.ink3)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.top, 20)
-            .padding(.bottom, 8)
+            .padding(.horizontal, 14)
+            .padding(.top, 14)
+            .padding(.bottom, 10)
     }
 
     private var divider: some View {
@@ -301,11 +324,11 @@ struct CalibrationView: View {
             trailing()
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 11)
+        .padding(.vertical, 12)
     }
 
     @ViewBuilder
-    private func thumbnail(_ base: String) -> some View {
+    private func artwork(_ base: String) -> some View {
         if let image = MapArt.image(for: base) {
             Image(uiImage: image)
                 .resizable()
@@ -313,6 +336,14 @@ struct CalibrationView: View {
         } else {
             palette.fill
         }
+    }
+
+    private func thumbnail(_ base: String, size: CGFloat, radius: CGFloat) -> some View {
+        Color.clear
+            .frame(width: size, height: size)
+            .overlay { artwork(base) }
+            .clipped()
+            .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
     }
 
     // MARK: - 逻辑
@@ -327,7 +358,7 @@ struct CalibrationView: View {
         RotationEngine.isPlausible(
             nextSwitchAt: resolvedSwitchTime,
             now: .now,
-            secondsPerMap: store.config.secondsPerMap
+            secondsPerMap: durationSeconds
         )
     }
 
@@ -343,11 +374,14 @@ struct CalibrationView: View {
         if store.isCalibrated, let slot = store.currentSlot(at: .now) {
             return slot.end
         }
-        return Date().addingTimeInterval(Double(store.config.secondsPerMap))
+        return Date().addingTimeInterval(Double(durationSeconds))
     }
 
     private func loadCurrentState() {
-        minutesText = String(store.config.secondsPerMap / 60)
+        let seconds = store.config.secondsPerMap
+        hours = min(12, max(0, seconds / 3600))
+        minutes = min(55, max(0, ((seconds % 3600) / 60 / 5) * 5))
+
         if store.isCalibrated, let slot = store.currentSlot(at: .now) {
             selectedIndex = store.config.maps.firstIndex(of: slot.map) ?? 0
             switchTime = slot.end
@@ -357,17 +391,34 @@ struct CalibrationView: View {
         }
     }
 
+    private func commitDuration() {
+        store.setSecondsPerMap(durationSeconds)
+        notice = "时长改为 \(TimeFormat.duration(seconds: durationSeconds))"
+    }
+
     private func apply() {
-        if let minutes = Int(minutesText), minutes >= 1, minutes <= 480 {
-            store.setSecondsPerMap(minutes * 60)
-        }
+        store.setSecondsPerMap(durationSeconds)
         store.calibrate(currentMapIndex: selectedIndex, nextSwitchAt: resolvedSwitchTime)
-        notice = "已校准"
+        dismiss()
+    }
+
+    private func importFromPasteboard() {
+        guard let text = UIPasteboard.general.string else {
+            notice = "剪贴板是空的"
+            return
+        }
+        if store.importText(text) {
+            loadCurrentState()
+            notice = "已导入配置"
+        } else {
+            notice = "剪贴板内容不是有效配置"
+        }
     }
 
     private func move(_ index: Int, by offset: Int) {
         let target = index + offset
-        guard store.config.maps.indices.contains(index), store.config.maps.indices.contains(target) else {
+        guard store.config.maps.indices.contains(index),
+              store.config.maps.indices.contains(target) else {
             return
         }
         store.moveMaps(from: IndexSet(integer: index), to: target > index ? target + 1 : target)

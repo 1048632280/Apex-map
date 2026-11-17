@@ -9,7 +9,14 @@ final class ConfigStore: ObservableObject {
     @Published private(set) var themeMode: ThemeMode
 
     init() {
-        self.config = SharedConfig.load()
+        var loaded = SharedConfig.load()
+        // 旧版本默认是 60 分钟，迁移到新的 4 小时 30 分
+        if loaded.secondsPerMap == 3600 {
+            loaded.secondsPerMap = RotationConfig.defaultSecondsPerMap
+            SharedConfig.save(loaded)
+        }
+        self.config = loaded
+
         let raw = UserDefaults.standard.string(forKey: Self.themeKey) ?? ThemeMode.system.rawValue
         self.themeMode = ThemeMode(rawValue: raw) ?? .system
     }
