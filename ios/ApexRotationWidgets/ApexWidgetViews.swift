@@ -32,14 +32,14 @@ struct ArtBackground: View {
 struct CountdownText: View {
     let slot: RotationSlot
     var size: CGFloat
-    var now: Date = Date()
 
     var body: some View {
         Group {
             if #available(iOS 16.0, *) {
                 Text(timerInterval: slot.start...slot.end, countsDown: true)
             } else {
-                Text(TimeFormat.countdown(slot.remaining(at: now)))
+                // iOS 15：日期文本样式同样由系统每秒刷新，不依赖 timeline 刷新
+                Text(slot.end, style: .timer)
             }
         }
         .font(.system(size: size, weight: .semibold, design: .monospaced))
