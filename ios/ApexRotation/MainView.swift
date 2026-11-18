@@ -86,7 +86,7 @@ struct MainView: View {
                 Spacer(minLength: 0)
             }
 
-            footer
+            footer()
         }
         .padding(.horizontal, metrics.horizontal)
         .padding(.top, metrics.top)
