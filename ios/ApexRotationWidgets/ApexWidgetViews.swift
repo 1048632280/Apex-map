@@ -9,7 +9,7 @@ enum WidgetInset {
     }
 }
 
-// MARK: - 通用零件
+// MARK: - 背景
 
 struct ArtBackground: View {
     let base: String
@@ -36,28 +36,6 @@ struct ArtBackground: View {
     }
 }
 
-struct CountdownText: View {
-    let slot: RotationSlot
-    var size: CGFloat
-
-    var body: some View {
-        Group {
-            if #available(iOS 16.0, *) {
-                Text(timerInterval: slot.start...slot.end, countsDown: true)
-            } else {
-                // iOS 15：日期文本样式同样由系统每秒刷新，不依赖 timeline 刷新
-                Text(slot.end, style: .timer)
-            }
-        }
-        .font(.system(size: size, weight: .semibold, design: .monospaced))
-        .foregroundStyle(.white)
-        .lineLimit(1)
-        .minimumScaleFactor(0.6)
-    }
-}
-
-// MARK: - 组件背景（iOS 17 用 containerBackground，低版本用 background）
-
 struct WidgetBackground<Background: View>: ViewModifier {
     let background: Background
 
@@ -78,36 +56,24 @@ extension View {
     }
 }
 
-struct ProgressBar: View {
-    let progress: Double
+// MARK: - 零件
+
+struct CountdownText: View {
+    let slot: RotationSlot
+    var size: CGFloat
 
     var body: some View {
-        GeometryReader { proxy in
-            ZStack(alignment: .leading) {
-                Capsule().fill(.white.opacity(0.24))
-                Capsule()
-                    .fill(Color(hex: 0xFFB4B8))
-                    .frame(width: proxy.size.width * min(1, max(0, progress)))
+        Group {
+            if #available(iOS 16.0, *) {
+                Text(timerInterval: slot.start...slot.end, countsDown: true)
+            } else {
+                Text(slot.end, style: .timer)
             }
         }
-    }
-}
-
-struct RingView<Content: View>: View {
-    let progress: Double
-    var lineWidth: CGFloat = 7
-    @ViewBuilder var content: () -> Content
-
-    var body: some View {
-        ZStack {
-            Circle()
-                .stroke(.white.opacity(0.22), lineWidth: lineWidth)
-            Circle()
-                .trim(from: 0, to: max(0.001, min(1, progress)))
-                .stroke(.white, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-            content()
-        }
+        .font(.system(size: size, weight: .semibold, design: .monospaced))
+        .foregroundStyle(.white)
+        .lineLimit(1)
+        .minimumScaleFactor(0.6)
     }
 }
 
@@ -117,7 +83,7 @@ struct WidgetLabel: View {
     var body: some View {
         Text(text)
             .font(.system(size: 9, weight: .bold))
-            .tracking(1.0)
+            .kerning(1.0)
             .foregroundStyle(.white.opacity(0.72))
     }
 }
@@ -144,7 +110,7 @@ struct SmallCurrentView: View {
     let entry: RotationEntry
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 2) {
             Spacer(minLength: 0)
             WidgetLabel(text: "当前")
             Text(entry.current.map.name)
@@ -152,11 +118,8 @@ struct SmallCurrentView: View {
                 .foregroundStyle(.white)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
-            CountdownText(slot: entry.current, size: 18)
+            CountdownText(slot: entry.current, size: 20)
                 .padding(.top, 2)
-            Spacer().frame(height: 8)
-            ProgressBar(progress: entry.current.progress(at: entry.date))
-                .frame(height: 3)
         }
         .padding(WidgetInset.value)
         .widgetBackground {
@@ -173,7 +136,7 @@ struct SmallCountdownView: View {
             Spacer(minLength: 0)
             Text(entry.current.map.name)
                 .font(.system(size: 10, weight: .bold))
-                .tracking(0.6)
+                .kerning(0.6)
                 .foregroundStyle(.white.opacity(0.82))
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
@@ -186,53 +149,30 @@ struct SmallCountdownView: View {
     }
 }
 
-struct SmallRingView: View {
+struct SmallNextView: View {
     let entry: RotationEntry
 
-    var body: some View {
-        VStack(spacing: 7) {
-            RingView(progress: entry.current.progress(at: entry.date), lineWidth: 8) {
-                Text("\(Int((entry.current.progress(at: entry.date) * 100).rounded()))%")
-                    .font(.system(size: 16, weight: .bold, design: .monospaced))
-                    .foregroundStyle(.white)
-            }
-            .frame(width: 92, height: 92)
+    private var next: RotationSlot? { entry.upcoming.first }
 
-            Text(entry.current.map.name)
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.9))
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Spacer(minLength: 0)
+            WidgetLabel(text: "下一张")
+            Text(next?.map.name ?? "--")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(.white)
                 .lineLimit(1)
-                .minimumScaleFactor(0.7)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(WidgetInset.value)
-        .widgetBackground {
-            ArtBackground(base: entry.current.map.art, strong: true)
-        }
-    }
-}
-
-struct SmallRingNameView: View {
-    let entry: RotationEntry
-
-    var body: some View {
-        RingView(progress: entry.current.progress(at: entry.date), lineWidth: 7) {
-            VStack(spacing: 3) {
-                CountdownText(slot: entry.current, size: 15)
-                Text(entry.current.map.name)
-                    .font(.system(size: 10, weight: .bold))
-                    .multilineTextAlignment(.center)
+                .minimumScaleFactor(0.75)
+            if let next {
+                Text(TimeFormat.clock.string(from: next.start))
+                    .font(.system(size: 17, weight: .semibold, design: .monospaced))
                     .foregroundStyle(.white)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.6)
-                    .padding(.horizontal, 12)
+                    .padding(.top, 1)
             }
         }
-        .frame(width: 106, height: 106)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(WidgetInset.value)
         .widgetBackground {
-            ArtBackground(base: entry.current.map.art, strong: true)
+            ArtBackground(base: next?.map.art ?? "", strong: true)
         }
     }
 }
@@ -253,11 +193,9 @@ struct MediumSplitView: View {
                     .font(.system(size: 17, weight: .bold))
                     .foregroundStyle(.white)
                     .lineLimit(1)
-                CountdownText(slot: entry.current, size: 22)
+                    .minimumScaleFactor(0.8)
+                CountdownText(slot: entry.current, size: 21)
                     .padding(.top, 2)
-                Spacer().frame(height: 8)
-                ProgressBar(progress: entry.current.progress(at: entry.date))
-                    .frame(width: 140, height: 3)
             }
             .padding(WidgetInset.value)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
@@ -265,13 +203,14 @@ struct MediumSplitView: View {
             VStack(alignment: .leading, spacing: 0) {
                 Text("下一张")
                     .font(.system(size: 10, weight: .bold))
-                    .tracking(0.8)
+                    .kerning(0.8)
                     .foregroundStyle(.secondary)
 
                 Text(next?.map.name ?? "--")
                     .font(.system(size: 15, weight: .bold))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                     .padding(.top, 4)
 
                 Spacer(minLength: 0)
@@ -311,6 +250,7 @@ struct MediumDualView: View {
                     .font(.system(size: 16, weight: .bold))
                     .foregroundStyle(.white)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                 CountdownText(slot: entry.current, size: 19)
                     .padding(.top, 2)
             }
@@ -320,7 +260,7 @@ struct MediumDualView: View {
             Rectangle()
                 .fill(.white.opacity(0.18))
                 .frame(width: 1)
-                .padding(.vertical, 13)
+                .padding(.vertical, WidgetInset.value)
 
             VStack(alignment: .trailing, spacing: 2) {
                 Spacer(minLength: 0)
@@ -329,6 +269,7 @@ struct MediumDualView: View {
                     .font(.system(size: 16, weight: .bold))
                     .foregroundStyle(.white)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                 if let next {
                     Text(TimeFormat.clock.string(from: next.start))
                         .font(.system(size: 17, weight: .semibold, design: .monospaced))
@@ -428,6 +369,8 @@ struct LargeOverlayView: View {
         }
     }
 }
+
+// MARK: - 行
 
 struct WidgetSlotRow: View {
     let slot: RotationSlot

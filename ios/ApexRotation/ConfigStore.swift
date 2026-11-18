@@ -67,7 +67,24 @@ final class ConfigStore: ObservableObject {
 
     func moveMaps(from source: IndexSet, to destination: Int) {
         config.maps.move(fromOffsets: source, toOffset: destination)
+        invalidateCalibration()
         persist()
+    }
+
+    func toggleMap(_ map: MapEntry) {
+        if let index = config.maps.firstIndex(where: { $0.slug == map.slug }) {
+            guard config.maps.count > 1 else { return }
+            config.maps.remove(at: index)
+        } else {
+            config.maps.append(map)
+        }
+        invalidateCalibration()
+        persist()
+    }
+
+    private func invalidateCalibration() {
+        config.calibrated = false
+        config.calibratedAt = nil
     }
 
     func reset() {
