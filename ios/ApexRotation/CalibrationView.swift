@@ -392,6 +392,11 @@ struct CalibrationView: View {
     }
 
     private func commitDuration() {
+        // 0 小时 0 分没有意义，直接吸到 5 分钟，避免滚轮和显示不一致
+        if hours == 0 && minutes == 0 {
+            minutes = 5
+            return
+        }
         store.setSecondsPerMap(durationSeconds)
         notice = "时长改为 \(TimeFormat.duration(seconds: durationSeconds))"
     }

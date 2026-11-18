@@ -25,6 +25,8 @@ struct RotationConfig: Codable, Equatable {
     /// 是否校准过
     var calibrated: Bool
     var updatedAt: Date
+    /// 上次校准时间（改时长/顺序不算校准，所以和 updatedAt 分开）
+    var calibratedAt: Date? = nil
 
     static let defaultSecondsPerMap = 16200 // 4 小时 30 分
 

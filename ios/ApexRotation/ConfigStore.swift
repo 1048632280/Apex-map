@@ -1,19 +1,24 @@
 import Foundation
 import Combine
 import SwiftUI
+import WidgetKit
 
 final class ConfigStore: ObservableObject {
     private static let themeKey = "themeMode"
+    private static let durationMigratedKey = "durationMigratedTo270"
 
     @Published private(set) var config: RotationConfig
     @Published private(set) var themeMode: ThemeMode
 
     init() {
         var loaded = SharedConfig.load()
-        // 旧版本默认是 60 分钟，迁移到新的 4 小时 30 分
-        if loaded.secondsPerMap == 3600 {
-            loaded.secondsPerMap = RotationConfig.defaultSecondsPerMap
-            SharedConfig.save(loaded)
+        // 旧版本默认是 60 分钟；只迁移一次，避免覆盖用户后来手动选的 1 小时
+        if !UserDefaults.standard.bool(forKey: Self.durationMigratedKey) {
+            UserDefaults.standard.set(true, forKey: Self.durationMigratedKey)
+            if loaded.secondsPerMap == 3600 {
+                loaded.secondsPerMap = RotationConfig.defaultSecondsPerMap
+                SharedConfig.save(loaded)
+            }
         }
         self.config = loaded
 
@@ -44,6 +49,7 @@ final class ConfigStore: ObservableObject {
             secondsPerMap: config.secondsPerMap
         )
         config.calibrated = true
+        config.calibratedAt = .now
         persist()
     }
 
@@ -99,5 +105,6 @@ final class ConfigStore: ObservableObject {
     private func persist() {
         config.updatedAt = .now
         SharedConfig.save(config)
+        WidgetCenter.shared.reloadAllTimelines()
     }
 }

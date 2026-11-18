@@ -2,6 +2,13 @@ import SwiftUI
 import UIKit
 import WidgetKit
 
+/// iOS 17 起系统会自动加组件内容边距，低版本需要自己补
+enum WidgetInset {
+    static var value: CGFloat {
+        if #available(iOS 17.0, *) { return 0 } else { return 13 }
+    }
+}
+
 // MARK: - 通用零件
 
 struct ArtBackground: View {
@@ -151,7 +158,7 @@ struct SmallCurrentView: View {
             ProgressBar(progress: entry.current.progress(at: entry.date))
                 .frame(height: 3)
         }
-        .padding(13)
+        .padding(WidgetInset.value)
         .widgetBackground {
             ArtBackground(base: entry.current.map.art, strong: true)
         }
@@ -172,7 +179,7 @@ struct SmallCountdownView: View {
                 .minimumScaleFactor(0.7)
             CountdownText(slot: entry.current, size: 30)
         }
-        .padding(13)
+        .padding(WidgetInset.value)
         .widgetBackground {
             ArtBackground(base: entry.current.map.art, strong: true)
         }
@@ -198,7 +205,7 @@ struct SmallRingView: View {
                 .minimumScaleFactor(0.7)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(12)
+        .padding(WidgetInset.value)
         .widgetBackground {
             ArtBackground(base: entry.current.map.art, strong: true)
         }
@@ -223,7 +230,7 @@ struct SmallRingNameView: View {
         }
         .frame(width: 106, height: 106)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(10)
+        .padding(WidgetInset.value)
         .widgetBackground {
             ArtBackground(base: entry.current.map.art, strong: true)
         }
@@ -252,7 +259,7 @@ struct MediumSplitView: View {
                 ProgressBar(progress: entry.current.progress(at: entry.date))
                     .frame(width: 140, height: 3)
             }
-            .padding(13)
+            .padding(WidgetInset.value)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
 
             VStack(alignment: .leading, spacing: 0) {
@@ -279,7 +286,7 @@ struct MediumSplitView: View {
                         .padding(.top, 1)
                 }
             }
-            .padding(13)
+            .padding(WidgetInset.value)
             .frame(width: 148, alignment: .leading)
             .frame(maxHeight: .infinity)
             .background(Color(uiColor: .secondarySystemGroupedBackground))
@@ -307,7 +314,7 @@ struct MediumDualView: View {
                 CountdownText(slot: entry.current, size: 19)
                     .padding(.top, 2)
             }
-            .padding(13)
+            .padding(WidgetInset.value)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
 
             Rectangle()
@@ -329,7 +336,7 @@ struct MediumDualView: View {
                         .padding(.top, 2)
                 }
             }
-            .padding(13)
+            .padding(WidgetInset.value)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
         }
         .widgetBackground {
@@ -362,7 +369,7 @@ struct LargeListView: View {
                     CountdownText(slot: entry.current, size: 24)
                         .padding(.top, 2)
                 }
-                .padding(14)
+                .padding(WidgetInset.value)
             }
             .frame(height: 206)
 
@@ -415,7 +422,7 @@ struct LargeOverlayView: View {
             }
             .padding(.top, 8)
         }
-        .padding(14)
+        .padding(WidgetInset.value)
         .widgetBackground {
             ArtBackground(base: entry.current.map.art, strong: true)
         }
