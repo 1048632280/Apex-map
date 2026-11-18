@@ -1,0 +1,70 @@
+name: ApexRotation
+
+options:
+  createIntermediateGroups: true
+  bundleIdPrefix: com.example
+  deploymentTarget:
+    iOS: "15.0"
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+
+targets:
+  ApexRotation:
+    type: application
+    platform: iOS
+    sources:
+      - path: Shared
+      - path: ApexRotation
+        excludes:
+          - "Info.plist"
+          - "*.entitlements"
+      - path: ../public/image
+        buildPhase: resources
+        includes:
+          - "*.webp"
+          - "*.png"
+    info:
+      path: ApexRotation/Info.plist
+      properties:
+        CFBundleDisplayName: ApexRotation
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        ITSAppUsesNonExemptEncryption: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.apexmap.rotation
+        TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        MARKETING_VERSION: "0.1.1"
+        CURRENT_PROJECT_VERSION: "1"
+
+  ApexRotationTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: ApexRotationTests
+    dependencies:
+      - target: ApexRotation
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/ApexRotation.app/ApexRotation"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+
+schemes:
+  ApexRotation:
+    build:
+      targets:
+        ApexRotation: all
+    test:
+      gatherCoverageData: false
+      targets:
+        - ApexRotationTests

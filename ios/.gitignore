@@ -1,0 +1,20 @@
+# XcodeGen 生成物
+Generated/
+*.xcodeproj
+*.xcworkspace
+ApexRotation/Info.plist
+ApexRotationWidgets/Info.plist
+ApexRotation/ApexRotation.entitlements
+ApexRotationWidgets/ApexRotationWidgets.entitlements
+
+# 构建产物
+build/
+build-ipa/
+DerivedData/
+Payload/
+*.ipa
+*.dSYM
+
+# 签名与本地配置
+*.xcconfig.local
+xcuserdata/
