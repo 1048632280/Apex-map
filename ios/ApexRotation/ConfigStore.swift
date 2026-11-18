@@ -1,7 +1,6 @@
 import Foundation
 import Combine
 import SwiftUI
-import WidgetKit
 
 final class ConfigStore: ObservableObject {
     private static let themeKey = "themeMode"
@@ -82,6 +81,16 @@ final class ConfigStore: ObservableObject {
         persist()
     }
 
+    func moveMap(from source: Int, to destination: Int) {
+        guard config.maps.indices.contains(source),
+              config.maps.indices.contains(destination),
+              source != destination else { return }
+        let map = config.maps.remove(at: source)
+        config.maps.insert(map, at: destination)
+        invalidateCalibration()
+        persist()
+    }
+
     private func invalidateCalibration() {
         config.calibrated = false
         config.calibratedAt = nil
@@ -122,6 +131,5 @@ final class ConfigStore: ObservableObject {
     private func persist() {
         config.updatedAt = .now
         SharedConfig.save(config)
-        WidgetCenter.shared.reloadAllTimelines()
     }
 }

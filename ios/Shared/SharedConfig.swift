@@ -4,19 +4,10 @@ import UIKit
 // MARK: - 共享配置（App Group）
 
 enum SharedConfig {
-    static let appGroup = "group.com.apexmap.rotation"
     static let fileName = "rotation.json"
 
-    static var containerURL: URL? {
-        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroup)
-    }
-
-    /// App Group 不可用时退回 App 自己的目录，至少保证主 App 的校准不会丢。
     static func fileURL() -> URL? {
-        if let container = containerURL {
-            return container.appendingPathComponent(fileName)
-        }
-        return FileManager.default
+        FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)
             .first?
             .appendingPathComponent(fileName)

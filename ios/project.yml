@@ -38,56 +38,12 @@ targets:
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         ITSAppUsesNonExemptEncryption: false
-    entitlements:
-      path: ApexRotation/ApexRotation.entitlements
-      properties:
-        com.apple.security.application-groups:
-          - group.com.apexmap.rotation
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.apexmap.rotation
         TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        MARKETING_VERSION: "0.1.0"
-        CURRENT_PROJECT_VERSION: "1"
-    dependencies:
-      - target: ApexRotationWidgets
-        embed: true
-
-  ApexRotationWidgets:
-    type: app-extension
-    platform: iOS
-    sources:
-      - path: Shared
-      - path: ApexRotationWidgets
-        excludes:
-          - "Info.plist"
-          - "*.entitlements"
-      - path: ../public/image
-        buildPhase: resources
-        includes:
-          - "*.webp"
-          - "*.png"
-    info:
-      path: ApexRotationWidgets/Info.plist
-      properties:
-        CFBundleDisplayName: 轮换组件
-        CFBundleShortVersionString: "$(MARKETING_VERSION)"
-        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
-        NSExtension:
-          NSExtensionPointIdentifier: com.apple.widgetkit-extension
-    entitlements:
-      path: ApexRotationWidgets/ApexRotationWidgets.entitlements
-      properties:
-        com.apple.security.application-groups:
-          - group.com.apexmap.rotation
-    settings:
-      base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.apexmap.rotation.widgets
-        SKIP_INSTALL: YES
-        APPLICATION_EXTENSION_API_ONLY: YES
-        TARGETED_DEVICE_FAMILY: "1"
-        MARKETING_VERSION: "0.1.0"
+        MARKETING_VERSION: "0.1.1"
         CURRENT_PROJECT_VERSION: "1"
 
   ApexRotationTests:
